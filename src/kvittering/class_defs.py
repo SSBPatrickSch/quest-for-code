@@ -139,9 +139,9 @@ class Husholdning:
             "\n"
             "==================================================\n"
             f"ID: {self.h_id}\n"
-            f"Ant pers: {self.husholdningstype}\n"
+            f"Husholdningstype: {self.husholdningstype.name}\n"
             f"Ant pers: {self.ant_pers}\n"
-            f"Utdanning: {self.utdanning}\n"
+            f"Utdanning: {self.utdanning.name}\n"
             f"Strukturert: {self.er_strukturert}\n"
             f"Ant kvitteringer: {len(self.kvitteringer)}\n"
             f"Tot pris: {self.get_kvitt_pris()} kroner\n"
@@ -150,7 +150,7 @@ class Husholdning:
     def get_kvitt_pris(self) -> int:
             return sum(k.pris for k in self.kvitteringer)
 
-    def handletur(self):
+    def handle_ett_aar(self):
         # Vi regner omtrentlig 57 120 i året pr voksen på mat: (4760 pr måned for voksen mann 30-50 år)
         # https://www.oslomet.no/om/sifo/referansebudsjettet
 
@@ -171,10 +171,13 @@ class Husholdning:
                     k_id=f"{self.h_id}-{tur}",
                 ))
 
-def simuler(n_befolkning : int = 100) -> list:
+def lag_befolkning(n_befolkning : int = 100) -> list[Husholdning]:
     husholdninger : list[Husholdning] = []
     for n in range(n_befolkning):
         husholdninger.append(Husholdning(h_id= n, definisjon=lag_husholdnings_definisjon()))
-        for h in husholdninger:
-            h.handletur()
+    return husholdninger
+
+def simuler_handling(husholdninger : list[Husholdning]) -> list[Husholdning]:
+    for h in husholdninger:
+        h.handle_ett_aar()
     return husholdninger
