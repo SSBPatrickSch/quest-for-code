@@ -1,13 +1,20 @@
 #%%
+
 from random import randint
 from typing import Any
-import class_defs as sim
+from kvittering import class_defs as sim
+from kvittering import simulate_util as su
+import kvittering.class_defs as sim
+
 
 #%%
-husholdninger: list[sim.Husholdning] = sim.lag_befolkning(n_befolkning=100000)
+params: sim.SimHandleFrekvensParams = sim.SimHandleFrekvensParams(1000, -5, 1,2,0.5,3,0.8,150)
+obj: su.HusholdningsHandleSim = su.lag_husholdnings_handle_sim(sim_config=params, printout=True)
 
-print("Completed")
-print(len(husholdninger))
+
+#%%
+
+husholdninger: list[sim.Husholdning] = obj.husholdninger
 
 #%%
 print(husholdninger[1])
@@ -20,6 +27,7 @@ print("Completed")
 print(husholdninger[1])
 print(husholdninger[2])
 print(len(husholdninger_handlet))
+
 #%%
 alle_kvitteringer : list[sim.Kvittering] = []
 
@@ -41,8 +49,8 @@ print(tot_sum)
 
 # %%
 
-def print_litt(n_print_husholdninger : int = 0):
-    to_print: list[int] = []
+def print_litt(husholdninger : list[sim.Husholdning],n_print_husholdninger : int = 0):
+    to_print: list[sim.Husholdning] = []
     for i in range(n_print_husholdninger):
         to_print.append(husholdninger[i + randint(0,100000)])
 
@@ -54,5 +62,5 @@ def print_litt(n_print_husholdninger : int = 0):
     print("Gjennomsnittlig årlig kost pr husholdning ",  tot_sum / 100000)
     print("Tilfeldig husholdninger:", to_print)
 # %%
-print_litt(1)
+print_litt(husholdninger, 4)
 # %%

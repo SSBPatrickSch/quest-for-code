@@ -1,37 +1,90 @@
-
+from dataclasses import dataclass
 from random import randint
 from typing import Any
-import class_defs as sim
+import time
 
-def lag_og_simuler(n_befolkning : int = 100, printout : bool = True) -> list[sim.Husholdning]
-    husholdninger: list[sim.Husholdning] = sim.lag_befolkning(n_befolkning=100000)
-    if printout:
-        print("Complete: Husholdninger handlet for ett år: ", len(husholdninger))
-        print("Første kvittering :", husholdninger[1].kvitteringer[1])
-    husholdninger_handlet :list[sim.Husholdning] = sim.simuler_handling(husholdninger)
-    if printout:
-        print("Complete: Husholdninger konstruert uten handling :", len(husholdninger_handlet))
-        print("Første husholdning :", (len(husholdninger_handlet)))
+from kvittering import class_defs as sim
+
+@dataclass
+class HusholdningsHandleSim():
+    """Dataclass container for gjennomført simulering av husholdninger og ett år av deres handleturer"""
+    sim_config : sim.SimHandleFrekvensParams
+    husholdninger : list[sim.Husholdning]
+    alle_kvitteringer : list[sim.Kvittering]
+    kvitteringssum : int
+
+def lag_husholdnings_handle_sim(sim_config: sim.SimHandleFrekvensParams|None = None, printout : bool = True) -> HusholdningsHandleSim:
     
+    """Gjennomfører en komplett simulering basert på ønsket befolkning (n_befolkning).
+    Returnerer dataclass HusholdningsHandleSim
+    
+    Optional printout for å printe statusoppdateringer"""
+    _sim_config: sim.SimHandleFrekvensParams
+    if sim_config != None:
+        _sim_config = sim_config
+    else:
+        _sim_config = sim.SimHandleFrekvensParams()
+    husholdninger: list[sim.Husholdning] = lag_og_simuler(sim_config=_sim_config, printout=printout)
+    alle_kvitteringer: list[sim.Kvittering] = get_alle_kvitteringer(husholdninger_handlet=husholdninger, printout=printout)
+    kvitteringssum: int = get_kvitt_sum(alle_kvitteringer, printout=printout)
+
+    return HusholdningsHandleSim(
+        sim_config=_sim_config,
+        husholdninger=husholdninger,
+        alle_kvitteringer=alle_kvitteringer,
+        kvitteringssum=kvitteringssum,
+    )
+
+def lag_og_simuler(sim_config: sim.SimHandleFrekvensParams, printout : bool) -> list[sim.Husholdning]:
+    """Lager n_befolkning antall husholdninger og kjører simulering for ett år med handling.
+    
+    Optional printout for å printe statusoppdateringer"""
+
+    if printout:
+        start_lag_husholdning: float = time.time()
+
+    husholdninger: list[sim.Husholdning] = sim.lag_befolkning(sim_config=sim_config)
+    
+    if printout:
+        end_lag_husholdning: float = time.time()
+        print("Complete: Husholdninger konstruert uten handling :", len(husholdninger))
+        print(f'Kjøretid: {end_lag_husholdning - start_lag_husholdning:.2f} sekunder')
+        start_sim: float = time.time()
+
+    husholdninger_handlet :list[sim.Husholdning] = sim.simuler_handling(husholdninger)
+
+    if printout:
+        end_sim: float = time.time()
+        print("Complete: Husholdninger handlet for ett år: ", len(husholdninger_handlet))
+        print(f'Kjøretid: {end_sim - start_sim:.2f} sekunder')
+        print("Første husholdning :", husholdninger_handlet[0])
+        print("Første kvittering :", husholdninger_handlet[0].kvitteringer[1])
+
     return husholdninger_handlet
 
-def get_alle_kvitteringer(husholdninger_handlet : list[sim.Husholdning])-> list[sim.Kvittering]:
+def get_alle_kvitteringer(husholdninger_handlet : list[sim.Husholdning], printout : bool)-> list[sim.Kvittering]:
+    """Lager og returnerer liste over Kvittering objekter basert på simulering"""
     alle_kvitteringer : list[sim.Kvittering] = []
-
     for h in husholdninger_handlet:
         for k in h.kvitteringer:
             alle_kvitteringer.append(k)
+    if printout:
+        print("Antall kvitteringer: ", len(alle_kvitteringer))
+    return alle_kvitteringer
 
-def get_kvitt_sum(alle_kvitteringer : list[sim.Kvittering]) -> int:
+def get_kvitt_sum(alle_kvitteringer : list[sim.Kvittering], printout : bool) -> int:
+    """Lager og returnerer sum av pris på kvitteringer basert på simulering"""
     tot_sum : int = 0
     for k in alle_kvitteringer:
         tot_sum += k.pris
+    if printout:
+        print("Samlede kvitteringssum ", tot_sum)
     return tot_sum
 
-def print_litt(husholdninger_handlet, alle_kvitteringer, kvitt_sum : int, n_print_husholdninger : int = 0):
+def print_litt(husholdninger_handlet, alle_kvitteringer, kvitt_sum : int, n_print_husholdninger : int = 0) -> None:
     to_print: list[int] = []
     for i in range(n_print_husholdninger):
-        to_print.append(husholdninger_handlet[i + randint(0,100000)])
+        to_print.append(husholdninger_handlet[i + randint(0,len(husholdninger_handlet))])
 
     print("Simulerte husholdninger: ",len(husholdninger_handlet))
     print("Konstruerte kvitteringer: ",len(alle_kvitteringer))
@@ -40,3 +93,7 @@ def print_litt(husholdninger_handlet, alle_kvitteringer, kvitt_sum : int, n_prin
     print("Gjennomsnittlig kvittering kostnad: ", round(sum(k.pris for k in alle_kvitteringer) / len(alle_kvitteringer)))
     print("Gjennomsnittlig årlig kost pr husholdning ",  kvitt_sum / len(husholdninger_handlet))
     print("Tilfeldig husholdninger:", to_print)
+
+def skriv_filer(base_path : str) -> None:
+    """Skriver filer til bøtte"""
+    pass
