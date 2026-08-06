@@ -15,7 +15,7 @@ print(husholdninger[2])
 
 
 #%%
-husholdninger_handlet = sim.simuler_handling(husholdninger)
+husholdninger_handlet : list[sim.Husholdning] = sim.simuler_handling(husholdninger)
 print("Completed")
 print(husholdninger[1])
 print(husholdninger[2])
@@ -40,13 +40,19 @@ print(tot_sum)
 
 
 # %%
-idx1: int = randint(0,100000)
-idx2: int = randint(10000,100000)
 
-print("Simulerte husholdninger: ",len(husholdninger_handlet))
-print("Konstruerte kvitteringer: ",len(alle_kvitteringer))
-print("Totalt handlet for: ", tot_sum)
-print("Totalt handlet for: ", round(tot_sum/1000000), "millioner")
-print("Gjennomsnittlig årlig kost pr husholdning ",  tot_sum / 100000)
-print("Tilfeldig husholdninger:", husholdninger[idx1], husholdninger[idx2])
+def print_litt(n_print_husholdninger : int = 0):
+    to_print: list[int] = []
+    for i in range(n_print_husholdninger):
+        to_print.append(husholdninger[i + randint(0,100000)])
+
+    print("Simulerte husholdninger: ",len(husholdninger_handlet))
+    print("Konstruerte kvitteringer: ",len(alle_kvitteringer))
+    print("Totalt handlet for: ", tot_sum)
+    print("Totalt handlet for: ", round(tot_sum/1000000), "millioner")
+    print("Gjennomsnittlig kvittering kostnad: ", round(sum(k.pris for k in alle_kvitteringer) / len(alle_kvitteringer)))
+    print("Gjennomsnittlig årlig kost pr husholdning ",  tot_sum / 100000)
+    print("Tilfeldig husholdninger:", to_print)
+# %%
+print_litt(1)
 # %%

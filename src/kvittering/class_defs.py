@@ -157,13 +157,11 @@ class Husholdning:
         aarlig_target: int = 57120 * self.ant_pers
         snitt_kvittering: float = aarlig_target / self.handleturer_pr_aar
 
-
-
         for tur in range(self.handleturer_pr_aar):
             _pris: int = round(number=gauss(mu=snitt_kvittering, sigma=snitt_kvittering * 0.25))
             pris: int = max(_pris, 100)
             snitt_varepris = 45
-            ant_varer: int = max(1, round(number=pris / snitt_varepris))
+            ant_varer: int = max(1, round(number= pris/ snitt_varepris))
             self.kvitteringer.append(
                 Kvittering(
                     ant_varer=ant_varer,

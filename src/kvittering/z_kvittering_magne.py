@@ -1,3 +1,6 @@
+from typing import Any
+
+
 from random import random, randint
 import pandas as pd
 
@@ -17,13 +20,13 @@ class Husholdning:
         er_strukturert: bool,
         id_: int,
     ):
-        self.ant_pers = ant_pers
-        self.utdanning = utdanning
-        self.er_strukturert = er_strukturert
-        self.id_ = id_
-        self.kvitteringer = []
+        self.ant_pers: int = ant_pers
+        self.utdanning: bool = utdanning
+        self.er_strukturert: bool = er_strukturert
+        self.id_: int = id_
+        self.kvitteringer: list[Any] = []
 
-    def __repr__(self):
+    def __repr__(self) -> str:
         return (
             f"Ant pers: {self.ant_pers}\n"
             f"Utdanning: {self.utdanning}\n"
@@ -32,14 +35,14 @@ class Husholdning:
             f"Tot pris: {self.get_tot_pris()} kroner"
         )
 
-    def get_tot_pris(self):
+    def get_tot_pris(self) -> int:
         return sum(k.pris for k in self.kvitteringer)
 
-    def handletur(self, dag: int):
+    def handletur(self, dag: int) -> None:
         if self.er_strukturert:
             if random() < 0.1:
-                ant_varer = randint(10, 100)
-                pris = (
+                ant_varer: int = randint(10, 100)
+                pris: int = (
                     randint(50, 150)
                     * ant_varer
                     * max(int(self.ant_pers * 0.8), 1)
