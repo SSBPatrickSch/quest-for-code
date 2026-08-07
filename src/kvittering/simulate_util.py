@@ -5,13 +5,43 @@ import time
 
 from kvittering import class_defs as sim
 
-@dataclass
-class HusholdningsHandleSim():
-    """Dataclass container for gjennomført simulering av husholdninger og ett år av deres handleturer"""
-    sim_config : sim.SimHandleFrekvensParams
-    husholdninger : list[sim.Husholdning]
-    alle_kvitteringer : list[sim.Kvittering]
-    kvitteringssum : int
+
+class HusholdningsHandleSim:
+    """Container for gjennomført simulering av husholdninger og ett år av deres handleturer"""
+    def __init__(
+        self,
+        sim_config : sim.SimHandleFrekvensParams,
+        husholdninger : list[sim.Husholdning],
+        alle_kvitteringer : list[sim.Kvittering],
+        kvitteringssum : int
+        ) -> None:
+
+        self.sim_config : sim.SimHandleFrekvensParams = sim_config
+        self.husholdninger : list[sim.Husholdning]  = husholdninger 
+        self.alle_kvitteringer : list[sim.Kvittering] = alle_kvitteringer
+        self.kvitteringssum : int = kvitteringssum 
+
+    def __repr__(self) -> Any:
+        return(
+            "\n"
+            "==================================================\n"
+            f"(Simulerte husholdninger: {len(self.husholdninger)}\n"
+            f"(Konstruerte kvitteringer: {len(self.alle_kvitteringer)}\n"
+            f"(Totalt handlet for: {self.kvitteringssum}\n"
+            f"(Totalt handlet for: {round(number=self.kvitteringssum/1000000), "millioner"}\n"
+            f"(Gjennomsnittlig kvittering kostnad: {round(sum(k.pris for k in self.alle_kvitteringer) / len(self.alle_kvitteringer))}\n"
+            f"(Gjennomsnittlig årlig kost pr husholdning {self.kvitteringssum / len(self.husholdninger)}\n"
+            )
+
+    def print_husholdninger(self,n_print_husholdninger : int = 1) -> Any:
+        for i in range(n_print_husholdninger): 
+            print(
+                "\n"
+                "==================================================\n"
+                f"(Tilfeldig husholdninger:{self.husholdninger[i]}\n"
+                )
+
+
 
 def lag_husholdnings_handle_sim(sim_config: sim.SimHandleFrekvensParams|None = None, printout : bool = True) -> HusholdningsHandleSim:
     
@@ -34,6 +64,7 @@ def lag_husholdnings_handle_sim(sim_config: sim.SimHandleFrekvensParams|None = N
         alle_kvitteringer=alle_kvitteringer,
         kvitteringssum=kvitteringssum,
     )
+
 
 def lag_og_simuler(sim_config: sim.SimHandleFrekvensParams, printout : bool) -> list[sim.Husholdning]:
     """Lager n_befolkning antall husholdninger og kjører simulering for ett år med handling.
@@ -81,18 +112,6 @@ def get_kvitt_sum(alle_kvitteringer : list[sim.Kvittering], printout : bool) -> 
         print("Samlede kvitteringssum ", tot_sum)
     return tot_sum
 
-def print_litt(husholdninger_handlet, alle_kvitteringer, kvitt_sum : int, n_print_husholdninger : int = 0) -> None:
-    to_print: list[int] = []
-    for i in range(n_print_husholdninger):
-        to_print.append(husholdninger_handlet[i + randint(0,len(husholdninger_handlet))])
-
-    print("Simulerte husholdninger: ",len(husholdninger_handlet))
-    print("Konstruerte kvitteringer: ",len(alle_kvitteringer))
-    print("Totalt handlet for: ", kvitt_sum)
-    print("Totalt handlet for: ", round(kvitt_sum/1000000), "millioner")
-    print("Gjennomsnittlig kvittering kostnad: ", round(sum(k.pris for k in alle_kvitteringer) / len(alle_kvitteringer)))
-    print("Gjennomsnittlig årlig kost pr husholdning ",  kvitt_sum / len(husholdninger_handlet))
-    print("Tilfeldig husholdninger:", to_print)
 
 def skriv_filer(base_path : str) -> None:
     """Skriver filer til bøtte"""

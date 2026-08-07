@@ -8,13 +8,23 @@ import kvittering.class_defs as sim
 
 
 #%%
-params: sim.SimHandleFrekvensParams = sim.SimHandleFrekvensParams(1000, -5, 1,2,0.5,3,0.8,150)
-obj: su.HusholdningsHandleSim = su.lag_husholdnings_handle_sim(sim_config=params, printout=True)
+params: sim.SimHandleFrekvensParams = sim.SimHandleFrekvensParams(10, -5, 1,2,0.5,3,0.8,150)
+sim_object: su.HusholdningsHandleSim = su.lag_husholdnings_handle_sim(sim_config=params, printout=True)
+
+
+#%%
+print(sim_object)
 
 
 #%%
 
-husholdninger: list[sim.Husholdning] = obj.husholdninger
+sim_object.print_husholdninger(n_print_husholdninger=1)
+#%%
+#%%
+
+#%%
+
+husholdninger: list[sim.Husholdning] = sim_object.husholdninger
 
 #%%
 print(husholdninger[1])
