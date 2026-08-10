@@ -25,27 +25,27 @@ class HusholdningsHandleSim:
         return(
             "\n"
             "==================================================\n"
-            f"(Simulerte husholdninger: {len(self.husholdninger)}\n"
-            f"(Konstruerte kvitteringer: {len(self.alle_kvitteringer)}\n"
-            f"(Totalt handlet for: {self.kvitteringssum}\n"
-            f"(Totalt handlet for: {round(number=self.kvitteringssum/1000000), "millioner"}\n"
-            f"(Gjennomsnittlig kvittering kostnad: {round(sum(k.pris for k in self.alle_kvitteringer) / len(self.alle_kvitteringer))}\n"
-            f"(Gjennomsnittlig årlig kost pr husholdning {self.kvitteringssum / len(self.husholdninger)}\n"
+            f"Simulerte husholdninger: {len(self.husholdninger)}\n"
+            f"Konstruerte kvitteringer: {len(self.alle_kvitteringer)}\n"
+            f"Totalt handlet for: {self.kvitteringssum}\n"
+            f"Totalt handlet for: {round(number=self.kvitteringssum/1000000)} millioner\n"
+            f"Gjennomsnittlig kvittering kostnad: {round(sum(k.pris for k in self.alle_kvitteringer) / len(self.alle_kvitteringer))}\n"
+            f"Gjennomsnittlig årlig kost pr husholdning {self.kvitteringssum / len(self.husholdninger)}\n"
+            "==================================================\n"
             )
 
     def print_husholdninger(self,n_print_husholdninger : int = 1) -> Any:
-        for i in range(n_print_husholdninger): 
-            print(
-                "\n"
-                "==================================================\n"
-                f"(Tilfeldig husholdninger:{self.husholdninger[i]}\n"
-                )
-
+        print(
+            f" {n_print_husholdninger} tilfeldige husholdninger:\n"
+            )
+        for i in range(n_print_husholdninger):
+            trekk: int = randint(0, n_print_husholdninger)
+            print(f"{self.husholdninger[trekk]}")
 
 
 def lag_husholdnings_handle_sim(sim_config: sim.SimHandleFrekvensParams|None = None, printout : bool = True) -> HusholdningsHandleSim:
     
-    """Gjennomfører en komplett simulering basert på ønsket befolkning (n_befolkning).
+    """Alternativ funksjon som ikke returnerer dedikert class. Gjennomfører en komplett simulering basert på ønsket befolkning (n_befolkning).
     Returnerer dataclass HusholdningsHandleSim
     
     Optional printout for å printe statusoppdateringer"""

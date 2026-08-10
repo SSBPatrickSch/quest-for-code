@@ -2,13 +2,27 @@
 
 from random import randint
 from typing import Any
-from kvittering import class_defs as sim
+from kvittering import class_defs as simS
 from kvittering import simulate_util as su
 import kvittering.class_defs as sim
-
+import pandas as pd
 
 #%%
-params: sim.SimHandleFrekvensParams = sim.SimHandleFrekvensParams(10, -5, 1,2,0.5,3,0.8,150)
+import sys
+print(sys.executable)
+import subprocess
+subprocess.run([sys.executable, "-m", "pip", "show", "pandas"])
+
+#%%
+params: sim.SimHandleFrekvensParams = sim.SimHandleFrekvensParams(
+    sim_pop=100,utdanning_effekt= 1,
+    husholdning_antall_effekt= 1,
+    rural_effekt= 2,
+    rural_prob=0.3,
+    strukturert_effekt=1, 
+    strukturert_prob=3,
+    default_turer=200)
+
 sim_object: su.HusholdningsHandleSim = su.lag_husholdnings_handle_sim(sim_config=params, printout=True)
 
 
@@ -18,8 +32,9 @@ print(sim_object)
 
 #%%
 
-sim_object.print_husholdninger(n_print_husholdninger=1)
+sim_object.print_husholdninger(n_print_husholdninger=10)
 #%%
+sim_object.alle_kvitteringer
 #%%
 
 #%%

@@ -59,7 +59,7 @@ class SimHandleFrekvensParams():
 
     Utdanning og husholdningsantall blir behandlet lineært, for enkelthets skyld.
 
-    Noe tilfeldig varians blir inkludert, for moro skyld mest.
+    Noe tilfeldig varians blir inkludert.
     
     Arguments:
 
@@ -200,7 +200,6 @@ class Husholdning:
 
     def __repr__(self) -> str:
         return (
-            "\n"
             "==================================================\n"
             f"ID: {self.h_id}\n"
             f"Husholdningstype: {self.husholdningstype.name}\n"
