@@ -1,4 +1,4 @@
-# code_quest
+# Quest for Code
 
 
 
@@ -7,4 +7,4 @@ ssb-pat <pat@ssb.no>
 
 ---
 
-Legg inn beskrivelse av prosjektet her.
+Within these tomes, in the depths of the source, lies code most experimental
