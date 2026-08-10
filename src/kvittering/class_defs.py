@@ -25,9 +25,12 @@ class HusholdningsType(Enum):
 
 @dataclass 
 class Kvittering:
+    """k_id er husholdnings id _ husholdningens handletur nummer """
+    k_id : str = ""
+    h_id : int = 0
     ant_varer : int = 0
     pris : int = 1
-    k_id : str = ""
+
 
 
 # Fordeling hentet fra :
@@ -93,17 +96,15 @@ class SimHandleFrekvensParams():
 
     def __repr__(self) -> str:
         return (
-            "\n"
-            "============== SIMULERINGSPARAMETRE =============="
-            "==================================================\n"
-            f"Simulerte husholdninger: {self.sim_pop}\n"
-            f"Default handleturer: {self.default_turer}\n"
-            f"Utdanningseffekt pr steg: {self.utdanning_effekt}\n"
-            f"Husholdningsantallseffekt pr ekstra: {self.husholdning_antall_effekt}\n"
-            f"Rural effekt på bool: {self.rural_effekt}\n"
-            f"Sansynlighet for husholdning rural: {self.rural_prob}\n"
-            f"Strukturert effekt på bool: {self.strukturert_effekt}\n"
-            f"Sansynlighet for husholdning strukturert: {self.strukturert_prob}\n"
+            "============== SIMULERINGSPARAMETRE ==============\n"
+            f"{self.sim_pop} : Simulerte husholdninger: \n"
+            f"{self.utdanning_effekt}   : Utdanningseffekt pr steg \n"
+            f"{self.husholdning_antall_effekt}   : Husholdningsantallseffekt pr ekstra \n"
+            f"{self.rural_effekt}   : Rural effekt på bool \n"
+            f"{self.rural_prob} : Sansynlighet for husholdning rural \n"
+            f"{self.strukturert_effekt}   : Strukturert effekt på bool \n"
+            f"{self.strukturert_prob} : Sansynlighet for husholdning strukturert \n"
+            f"{self.default_turer} : Default handleturer \n"
             "==================================================\n"
         )
 
@@ -127,15 +128,11 @@ def set_handlefrekvens(params : SimHandleFrekvensParams, utdanning: Utdanning, s
     
     return turer
  
-def set_er_strukturert(strukturert_prob : float) -> bool:
-    rfloat: float = random()
-    if rfloat > min(1.00,strukturert_prob): return True 
-    else: return False
+def set_er_strukturert(strukturert_prob: float) -> bool:
+    return random() < strukturert_prob
 
 def set_rural(rural_prob : float) -> bool:
-    rfloat: float = random()
-    if rfloat > min(1.00, rural_prob): return True 
-    else: return False
+    return random() < rural_prob
 
 def set_utdanning()-> Utdanning:
     rfloat: float = random()
@@ -166,7 +163,7 @@ class HusholdningsDefinisjon:
 def lag_husholdnings_definisjon(sim_params : SimHandleFrekvensParams) -> HusholdningsDefinisjon:
     _husholdningstype: HusholdningsType = set_husholdningstype()
     _utdanning : Utdanning = set_utdanning()
-    _er_strukturert : bool = set_er_strukturert(strukturert_prob=sim_params.strukturert_effekt)
+    _er_strukturert : bool = set_er_strukturert(strukturert_prob=sim_params.strukturert_prob)
     _bor_ruralt : bool = set_rural(sim_params.rural_prob)
     _ant_pers: int = set_ant_pers(husholdningstype=_husholdningstype)
     _handleturer_pr_aar: int = set_handlefrekvens(params = sim_params,
@@ -188,7 +185,7 @@ def lag_husholdnings_definisjon(sim_params : SimHandleFrekvensParams) -> Hushold
 class Husholdning:
     def __init__(self, h_id : int, definisjon : HusholdningsDefinisjon) -> None:
 
-        self.h_id : int = h_id
+        self.h_id : int = h_id +1
         # Fra definisjon
         self.husholdningstype : HusholdningsType= definisjon.husholdningstype
         self.utdanning: Utdanning = definisjon.utdanning
@@ -209,6 +206,18 @@ class Husholdning:
             f"Ant kvitteringer: {len(self.kvitteringer)}\n"
             f"Tot pris: {self.get_kvitt_pris()} kroner\n"
         )
+        ## For quick and easy transform to dataframe.
+    def as_dict(self) -> dict:
+        return {
+            "h_id": self.h_id,
+            "husholdningstype": self.husholdningstype.name,
+            "utdanning": self.utdanning.name,
+            "ant_pers": self.ant_pers,
+            "er_strukturert": self.er_strukturert,
+            "handleturer_pr_aar": self.handleturer_pr_aar,
+            "ant_kvitteringer": len(self.kvitteringer),
+            "tot_pris": self.get_kvitt_pris()
+        }
 
     def get_kvitt_pris(self) -> int:
             return sum(k.pris for k in self.kvitteringer)
@@ -220,16 +229,18 @@ class Husholdning:
         aarlig_target: int = 57120 * self.ant_pers
         snitt_kvittering: float = aarlig_target / self.handleturer_pr_aar
 
-        for tur in range(self.handleturer_pr_aar):
+        for tur in range(self.handleturer_pr_aar +1):
             _pris: int = round(number=gauss(mu=snitt_kvittering, sigma=snitt_kvittering * 0.25))
             pris: int = max(_pris, 100)
             snitt_varepris = 45
             ant_varer: int = max(1, round(number= pris/ snitt_varepris))
             self.kvitteringer.append(
                 Kvittering(
+                    k_id=f"{self.h_id}-{tur}",
+                    h_id= self.h_id,
                     ant_varer=ant_varer,
                     pris=pris,
-                    k_id=f"{self.h_id}-{tur}",
+
                 ))
 
 def lag_befolkning(sim_config : SimHandleFrekvensParams) -> list[Husholdning]:

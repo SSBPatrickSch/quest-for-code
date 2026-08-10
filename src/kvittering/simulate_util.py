@@ -2,8 +2,9 @@ from dataclasses import dataclass
 from random import randint
 from typing import Any
 import time
-
+import pandas as pd
 from kvittering import class_defs as sim
+from kvittering.sim_notebook import sim_object
 
 
 class HusholdningsHandleSim:
@@ -23,12 +24,12 @@ class HusholdningsHandleSim:
 
     def __repr__(self) -> Any:
         return(
-            "\n"
+            f"{self.sim_config}\n"
             "==================================================\n"
             f"Simulerte husholdninger: {len(self.husholdninger)}\n"
             f"Konstruerte kvitteringer: {len(self.alle_kvitteringer)}\n"
             f"Totalt handlet for: {self.kvitteringssum}\n"
-            f"Totalt handlet for: {round(number=self.kvitteringssum/1000000)} millioner\n"
+            f"Totalt handlet for: {round(number=self.kvitteringssum/1000000, ndigits=2)} millioner\n"
             f"Gjennomsnittlig kvittering kostnad: {round(sum(k.pris for k in self.alle_kvitteringer) / len(self.alle_kvitteringer))}\n"
             f"Gjennomsnittlig årlig kost pr husholdning {self.kvitteringssum / len(self.husholdninger)}\n"
             "==================================================\n"
@@ -86,10 +87,10 @@ def lag_og_simuler(sim_config: sim.SimHandleFrekvensParams, printout : bool) -> 
 
     if printout:
         end_sim: float = time.time()
-        print("Complete: Husholdninger handlet for ett år: ", len(husholdninger_handlet))
-        print(f'Kjøretid: {end_sim - start_sim:.2f} sekunder')
-        print("Første husholdning :", husholdninger_handlet[0])
-        print("Første kvittering :", husholdninger_handlet[0].kvitteringer[1])
+        print(f"Complete: Husholdninger handlet for ett år: {len(husholdninger_handlet)}")
+        print(f'Kjøretid: {end_sim - start_sim:.4f} sekunder')
+        print(f"Første husholdning :\n {husholdninger_handlet[0]}")
+        print(f"Første kvittering : \n {husholdninger_handlet[0].kvitteringer[1]}")
 
     return husholdninger_handlet
 
@@ -116,3 +117,62 @@ def get_kvitt_sum(alle_kvitteringer : list[sim.Kvittering], printout : bool) -> 
 def skriv_filer(base_path : str) -> None:
     """Skriver filer til bøtte"""
     pass
+
+class SampledData:
+    kvitt_husholdninger: pd.DataFrame
+    kvitt_kvitteringer : pd.DataFrame
+    
+    def __init__(self,sim_object: HusholdningsHandleSim,sample_frac: float = 0.01,) -> None:
+        husholdning_df : pd.DataFrame = pd.DataFrame( h.as_dict() for h in sim_object.husholdninger)
+
+        kvittering_df : pd.DataFrame = pd.DataFrame(sim_object.alle_kvitteringer)
+
+        husholdning_uttrekk : pd.DataFrame = husholdning_df.sample(frac=sample_frac)
+        kvittering_uttrekk : pd.DataFrame = kvittering_df.sample(frac=sample_frac)
+
+        self.kvitt_husholdninger = husholdning_uttrekk.merge(right=kvittering_df, on="h_id", how="inner")
+        self.kvitt_kvitteringer =kvittering_uttrekk.merge(right=husholdning_df, on="h_id", how="inner")
+
+
+def compare_sampling(sampled_data: SampledData, column: str) -> pd.DataFrame:
+    hush = (
+        sampled_data.kvitt_husholdninger[column]
+        .value_counts(normalize=True) * 100
+    )
+
+    kvitt = (
+        sampled_data.kvitt_kvitteringer[column]
+        .value_counts(normalize=True) * 100
+    )
+
+    expected = {}
+    previous = 0
+
+    for cumulative, utdanning in sim.utdanningsfordeling.items():
+        expected[utdanning.name] = (cumulative - previous) * 100
+        previous = cumulative
+
+    result = pd.DataFrame({
+        "Faktisk fordeling": expected,
+        "Husholdningsuttrekk": hush,
+        "Kvitteringsuttrekk": kvitt,
+    }).fillna(0)
+
+    result["Diff utvalg"] = (
+        result["Kvitteringsuttrekk"] -
+        result["Husholdningsuttrekk"]
+    )
+
+    # Use the order from utdanningsfordeling
+    result = result.reindex(
+        [utdanning.name for utdanning in sim.utdanningsfordeling.values()]
+    )
+    return result.round(2)
+
+def sim_og_rapporter(params : sim.SimHandleFrekvensParams):
+    sim_object: HusholdningsHandleSim = lag_husholdnings_handle_sim(sim_config=params, printout=True)
+    sample_data : SampledData = SampledData(sim_object)
+    interesting_cols: list[str] = ['husholdningstype', 'utdanning', 'ant_pers', 'er_strukturert']
+    for col in interesting_cols:
+        print(compare_sampling(sampled_data=sample_data,column=col))
+
