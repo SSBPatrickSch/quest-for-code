@@ -66,7 +66,7 @@ class SimHandleFrekvensParams():
     
     Arguments:
 
-    ant_pop_sim : int                   -- Antall husholdninger som skal simuleres
+    sim_pop : int                       -- Antall husholdninger som skal simuleres
     utdanning_effekt : int              -- Utdanningsskala Uoppgitt(0)-høyere(4)
     husholdning_antall_effekt : int     -- Antall 1-7
     rural_effekt : int                  -- Effekten av å bo urbant
@@ -122,8 +122,9 @@ def set_handlefrekvens(params : SimHandleFrekvensParams, utdanning: Utdanning, s
 
     if strukturert:
         turer += params.strukturert_effekt
+    if rural:
+        turer += params.rural_effekt
     turer += (utdanning.value * params.utdanning_effekt)
-    turer += (rural * params.rural_effekt)
     turer += (ant_pers * params.husholdning_antall_effekt)
     
     return turer
@@ -159,6 +160,12 @@ class HusholdningsDefinisjon:
     ant_pers : int
     handleturer_pr_aar : int
 
+def get_compare_pattern(colname : str):
+    match colname:
+        case "husholdningstype" : return [e.name for e in HusholdningsType]
+        case "utdanning" : return [e.name for e in Utdanning]
+        case _: return None
+
 
 def lag_husholdnings_definisjon(sim_params : SimHandleFrekvensParams) -> HusholdningsDefinisjon:
     _husholdningstype: HusholdningsType = set_husholdningstype()
@@ -189,6 +196,7 @@ class Husholdning:
         # Fra definisjon
         self.husholdningstype : HusholdningsType= definisjon.husholdningstype
         self.utdanning: Utdanning = definisjon.utdanning
+        self.bor_ruralt : bool =definisjon.bor_ruralt
         self.ant_pers : int = definisjon.ant_pers
         self.er_strukturert: bool = definisjon.er_strukturert
         self.handleturer_pr_aar : int = definisjon.handleturer_pr_aar
@@ -202,6 +210,7 @@ class Husholdning:
             f"Husholdningstype: {self.husholdningstype.name}\n"
             f"Ant pers: {self.ant_pers}\n"
             f"Utdanning: {self.utdanning.name}\n"
+            f"Bor rural: {self.bor_ruralt}\n"
             f"Strukturert: {self.er_strukturert}\n"
             f"Ant kvitteringer: {len(self.kvitteringer)}\n"
             f"Tot pris: {self.get_kvitt_pris()} kroner\n"
@@ -229,7 +238,7 @@ class Husholdning:
         aarlig_target: int = 57120 * self.ant_pers
         snitt_kvittering: float = aarlig_target / self.handleturer_pr_aar
 
-        for tur in range(self.handleturer_pr_aar +1):
+        for tur in range(self.handleturer_pr_aar):
             _pris: int = round(number=gauss(mu=snitt_kvittering, sigma=snitt_kvittering * 0.25))
             pris: int = max(_pris, 100)
             snitt_varepris = 45

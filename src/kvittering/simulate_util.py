@@ -4,7 +4,6 @@ from typing import Any
 import time
 import pandas as pd
 from kvittering import class_defs as sim
-from kvittering.sim_notebook import sim_object
 
 
 class HusholdningsHandleSim:
@@ -119,60 +118,53 @@ def skriv_filer(base_path : str) -> None:
     pass
 
 class SampledData:
-    kvitt_husholdninger: pd.DataFrame
-    kvitt_kvitteringer : pd.DataFrame
+    husholdninger : pd.DataFrame
+    sampled_husholdninger: pd.DataFrame
+    sampled_kvitteringer : pd.DataFrame
     
     def __init__(self,sim_object: HusholdningsHandleSim,sample_frac: float = 0.01,) -> None:
-        husholdning_df : pd.DataFrame = pd.DataFrame( h.as_dict() for h in sim_object.husholdninger)
 
+        husholdning_df : pd.DataFrame = pd.DataFrame( h.as_dict() for h in sim_object.husholdninger)
         kvittering_df : pd.DataFrame = pd.DataFrame(sim_object.alle_kvitteringer)
 
         husholdning_uttrekk : pd.DataFrame = husholdning_df.sample(frac=sample_frac)
         kvittering_uttrekk : pd.DataFrame = kvittering_df.sample(frac=sample_frac)
 
-        self.kvitt_husholdninger = husholdning_uttrekk.merge(right=kvittering_df, on="h_id", how="inner")
-        self.kvitt_kvitteringer =kvittering_uttrekk.merge(right=husholdning_df, on="h_id", how="inner")
+        self.husholdninger = husholdning_df
+        self.sampled_husholdninger = husholdning_uttrekk.merge(right=kvittering_df, on="h_id", how="inner")
+        self.sampled_kvitteringer =kvittering_uttrekk.merge(right=husholdning_df, on="h_id", how="inner")
 
 
 def compare_sampling(sampled_data: SampledData, column: str) -> pd.DataFrame:
-    hush = (
-        sampled_data.kvitt_husholdninger[column]
-        .value_counts(normalize=True) * 100
-    )
+    # True distribution: all receipts
+    households: pd.DataFrame = (sampled_data.husholdninger[column].value_counts(normalize=True) * 100)
 
-    kvitt = (
-        sampled_data.kvitt_kvitteringer[column]
-        .value_counts(normalize=True) * 100
-    )
+    # Household sampling: 1% households, then all their receipts
+    husholdning_trekk : pd.DataFrame = (sampled_data.sampled_husholdninger[column].value_counts(normalize=True) * 100)
+    # Receipt sampling: 1% of all receipts
+    kvittering_trekk : pd.DataFrame = (sampled_data.sampled_kvitteringer[column].value_counts(normalize=True) * 100)
 
-    expected = {}
-    previous = 0
+    order: list[str] | None = sim.get_compare_pattern(column)
 
-    for cumulative, utdanning in sim.utdanningsfordeling.items():
-        expected[utdanning.name] = (cumulative - previous) * 100
-        previous = cumulative
+    result : pd.DataFrame  = pd.DataFrame({
+        "Fordeling full sim": households,
+        "Husholdningsuttrekk": husholdning_trekk,
+        "Kvitteringsuttrekk": kvittering_trekk,
+    }).reindex(order).fillna(0)
 
-    result = pd.DataFrame({
-        "Faktisk fordeling": expected,
-        "Husholdningsuttrekk": hush,
-        "Kvitteringsuttrekk": kvitt,
-    }).fillna(0)
+    if order is not None:
+        result = result.reindex(order)
+    else:
+        result = result.sort_index()
 
-    result["Diff utvalg"] = (
-        result["Kvitteringsuttrekk"] -
-        result["Husholdningsuttrekk"]
-    )
+    # Bias relative to the true receipt distribution
+    result["Diff husholdningsuttrekk"] = (result["Husholdningsuttrekk"] - result["Fordeling full sim"])
+    result["Diff kvitteringsuttrekk"] = (result["Kvitteringsuttrekk"] - result["Fordeling full sim"] )
 
-    # Use the order from utdanningsfordeling
-    result = result.reindex(
-        [utdanning.name for utdanning in sim.utdanningsfordeling.values()]
-    )
     return result.round(2)
 
-def sim_og_rapporter(params : sim.SimHandleFrekvensParams):
-    sim_object: HusholdningsHandleSim = lag_husholdnings_handle_sim(sim_config=params, printout=True)
-    sample_data : SampledData = SampledData(sim_object)
-    interesting_cols: list[str] = ['husholdningstype', 'utdanning', 'ant_pers', 'er_strukturert']
-    for col in interesting_cols:
-        print(compare_sampling(sampled_data=sample_data,column=col))
 
+def sim_og_rapporter(params : sim.SimHandleFrekvensParams) -> pd.DataFrame:
+    sim_object: HusholdningsHandleSim = lag_husholdnings_handle_sim(sim_config=params, printout=False)
+    sample_data : SampledData = SampledData(sim_object)
+    return compare_sampling(sample_data, "utdanning")
