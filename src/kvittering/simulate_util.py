@@ -1,156 +1,171 @@
+from pandas.core.frame import DataFrame
 from dataclasses import dataclass
+from enum import Enum
 from random import randint
-from typing import Any
+from typing import Any, Never
 import time
 import pandas as pd
 from kvittering import class_defs as sim
 
+@dataclass
+class HouseholdSim:
+    """
+    Data container for completed simulation of households and one year worth of their shopping trips.
+    To stay leaner it stores the sim results in two lists of dedicated classes.
 
-class HusholdningsHandleSim:
-    """Container for gjennomført simulering av husholdninger og ett år av deres handleturer"""
-    def __init__(
-        self,
-        sim_config : sim.SimHandleFrekvensParams,
-        husholdninger : list[sim.Husholdning],
-        alle_kvitteringer : list[sim.Kvittering],
-        kvitteringssum : int
-        ) -> None:
+    sampled_data (Optional, set arg when running sim):
+    
+    sampled_data contains a SampleData dataclass consisting of pandas DataFrames that are merged and comparable, including 1% sampled data:
 
-        self.sim_config : sim.SimHandleFrekvensParams = sim_config
-        self.husholdninger : list[sim.Husholdning]  = husholdninger 
-        self.alle_kvitteringer : list[sim.Kvittering] = alle_kvitteringer
-        self.kvitteringssum : int = kvitteringssum 
+    alle_husholdninger : pd.DataFrame
+    alle_kvitteringering : pd.DataFrame
+    sampled_husholdninger: pd.DataFrame
+    sampled_kvitteringer : pd.DataFrame
+    """
+    sim_config : sim.SimConfig
+    households : list[sim.Household]
+    receipts : list[sim.Receipt]
+    receipt_tot_sum: int
+    sampled_data: "SampledData | None" = None
 
     def __repr__(self) -> Any:
         return(
             f"{self.sim_config}\n"
             "==================================================\n"
-            f"Simulerte husholdninger: {len(self.husholdninger)}\n"
-            f"Konstruerte kvitteringer: {len(self.alle_kvitteringer)}\n"
-            f"Totalt handlet for: {self.kvitteringssum}\n"
-            f"Totalt handlet for: {round(number=self.kvitteringssum/1000000, ndigits=2)} millioner\n"
-            f"Gjennomsnittlig kvittering kostnad: {round(sum(k.pris for k in self.alle_kvitteringer) / len(self.alle_kvitteringer))}\n"
-            f"Gjennomsnittlig årlig kost pr husholdning {self.kvitteringssum / len(self.husholdninger)}\n"
+            f"Simulated households: {len(self.households)}\n"
+            f"N receipts made: {len(self.receipts)}\n"
+            f"Total shopping cost: {self.receipt_tot_sum}\n"
+            f"Total shopping: {round(number=self.receipt_tot_sum/1000000, ndigits=2)} millions\n"
+            f"Average receipt sum cost: {round(sum(k.cost for k in self.receipts) / len(self.receipts))}\n"
+            f"Average cost per household {self.receipt_tot_sum / len(self.households)}\n"
+            f"SampleData set: {'yes' if self.sampled_data is not None else 'no'}\n"
             "==================================================\n"
             )
 
-    def print_husholdninger(self,n_print_husholdninger : int = 1) -> Any:
-        print(
-            f" {n_print_husholdninger} tilfeldige husholdninger:\n"
-            )
-        for i in range(n_print_husholdninger):
-            trekk: int = randint(0, n_print_husholdninger)
-            print(f"{self.husholdninger[trekk]}")
+def print_households(sim_object : HouseholdSim,n_to_print : int = 1) -> Any:
+    """Prints (arg2) amount of random households from simulation (arg1)"""
+    print(f" {n_to_print} Random households:\n")
+    for i in range(n_to_print):
+        idx: int = randint(0, n_to_print)
+        print(f"{sim_object.households[idx]}")
 
 
-def lag_husholdnings_handle_sim(sim_config: sim.SimHandleFrekvensParams|None = None, printout : bool = True) -> HusholdningsHandleSim:
+def simulate(sim_config: sim.SimConfig|None = None, printout : bool = True, create_sample_data : bool = True) -> HouseholdSim:
+    """ Creates households and simulates one year of shopping.
+
+    Returns a HouseholdSim data object.
+
+    Optional parameters:
+
+    printout (default True)
     
-    """Alternativ funksjon som ikke returnerer dedikert class. Gjennomfører en komplett simulering basert på ønsket befolkning (n_befolkning).
-    Returnerer dataclass HusholdningsHandleSim
-    
-    Optional printout for å printe statusoppdateringer"""
-    _sim_config: sim.SimHandleFrekvensParams
-    if sim_config != None:
-        _sim_config = sim_config
-    else:
-        _sim_config = sim.SimHandleFrekvensParams()
-    husholdninger: list[sim.Husholdning] = lag_og_simuler(sim_config=_sim_config, printout=printout)
-    alle_kvitteringer: list[sim.Kvittering] = get_alle_kvitteringer(husholdninger_handlet=husholdninger, printout=printout)
-    kvitteringssum: int = get_kvitt_sum(alle_kvitteringer, printout=printout)
+    create_sample_data (default True) makes a pandas DataFrame container with sampled data. 
+    Set to false to lessen runtime and access lists in returned HouseholSim directly.
+    """
 
-    return HusholdningsHandleSim(
-        sim_config=_sim_config,
-        husholdninger=husholdninger,
-        alle_kvitteringer=alle_kvitteringer,
-        kvitteringssum=kvitteringssum,
-    )
+    if sim_config == None:
+        sim_config = sim.SimConfig()
+
+    households: list[sim.Household] = simulate_no_class(sim_config, printout)
+    receipts: list[sim.Receipt] = get_all_receipts(households, printout)
+    receipt_tot_sum: int = create_receit_total_cost(receipts, printout)
+
+    new_sim: HouseholdSim = HouseholdSim(sim_config,households,receipts,receipt_tot_sum)
+    if create_sample_data:
+        new_sim.sampled_data = SampledData(sim_object=new_sim,sample_frac=0.1)
+    return new_sim
 
 
-def lag_og_simuler(sim_config: sim.SimHandleFrekvensParams, printout : bool) -> list[sim.Husholdning]:
-    """Lager n_befolkning antall husholdninger og kjører simulering for ett år med handling.
-    
-    Optional printout for å printe statusoppdateringer"""
-
+def simulate_no_class(sim_config: sim.SimConfig, printout : bool) -> list[sim.Household]:
     if printout:
         start_lag_husholdning: float = time.time()
 
-    husholdninger: list[sim.Husholdning] = sim.lag_befolkning(sim_config=sim_config)
+    households: list[sim.Household] = sim.create_households(sim_params=sim_config)
     
     if printout:
         end_lag_husholdning: float = time.time()
-        print("Complete: Husholdninger konstruert uten handling :", len(husholdninger))
-        print(f'Kjøretid: {end_lag_husholdning - start_lag_husholdning:.2f} sekunder')
+        print("Complete: Households constructed (prior to shopping sim) :", len(households))
+        print(f'Run time: {end_lag_husholdning - start_lag_husholdning:.2f} sekunder')
         start_sim: float = time.time()
 
-    husholdninger_handlet :list[sim.Husholdning] = sim.simuler_handling(husholdninger)
+    households_shopped :list[sim.Household] = sim.simulate_shopping(households)
 
     if printout:
         end_sim: float = time.time()
-        print(f"Complete: Husholdninger handlet for ett år: {len(husholdninger_handlet)}")
-        print(f'Kjøretid: {end_sim - start_sim:.4f} sekunder')
-        print(f"Første husholdning :\n {husholdninger_handlet[0]}")
-        print(f"Første kvittering : \n {husholdninger_handlet[0].kvitteringer[1]}")
+        print(f"Complete: Simulated shopping for: {len(households_shopped)} households")
+        print(f'Run time: {end_sim - start_sim:.4f} seconds')
+        print(f"First household :\n {households_shopped[0]}")
+        print(f"First receipt : \n {households_shopped[0].receipts[1]}")
 
-    return husholdninger_handlet
+    return households_shopped
 
-def get_alle_kvitteringer(husholdninger_handlet : list[sim.Husholdning], printout : bool)-> list[sim.Kvittering]:
-    """Lager og returnerer liste over Kvittering objekter basert på simulering"""
-    alle_kvitteringer : list[sim.Kvittering] = []
-    for h in husholdninger_handlet:
-        for k in h.kvitteringer:
-            alle_kvitteringer.append(k)
+def get_all_receipts(households_shopped : list[sim.Household], printout : bool)-> list[sim.Receipt]:
+    """Fetches all receipts in houshold and returns as list"""
+    all_receipts : list[sim.Receipt] = []
+    for h in households_shopped:
+        for k in h.receipts:
+            all_receipts.append(k)
     if printout:
-        print("Antall kvitteringer: ", len(alle_kvitteringer))
-    return alle_kvitteringer
+        print("N receipts: ", len(all_receipts))
+    return all_receipts
 
-def get_kvitt_sum(alle_kvitteringer : list[sim.Kvittering], printout : bool) -> int:
-    """Lager og returnerer sum av pris på kvitteringer basert på simulering"""
+def create_receit_total_cost(alle_kvitteringer : list[sim.Receipt], printout : bool) -> int:
+    """Creates the grand total for all receits"""
     tot_sum : int = 0
     for k in alle_kvitteringer:
-        tot_sum += k.pris
+        tot_sum += k.cost
     if printout:
         print("Samlede kvitteringssum ", tot_sum)
     return tot_sum
 
 
-def skriv_filer(base_path : str) -> None:
-    """Skriver filer til bøtte"""
+def write_files(base_path : str) -> None:
+    """Writes a sim object to bøtte"""
     pass
 
 class SampledData:
-    husholdninger : pd.DataFrame
-    sampled_husholdninger: pd.DataFrame
-    sampled_kvitteringer : pd.DataFrame
+    """Pandas DataFrame container. all_X is the full simulated datasets. sampled_x is a 1% sample: unit : receipt, households merged on."""
+    all_households : pd.DataFrame
+    all_receipts : pd.DataFrame
+    sampled_households: pd.DataFrame
+    sampled_receipts : pd.DataFrame
     
-    def __init__(self,sim_object: HusholdningsHandleSim,sample_frac: float = 0.01,) -> None:
+    def __init__(self,sim_object : HouseholdSim, sample_frac: float = 0.01) -> None:
 
-        husholdning_df : pd.DataFrame = pd.DataFrame( h.as_dict() for h in sim_object.husholdninger)
-        kvittering_df : pd.DataFrame = pd.DataFrame(sim_object.alle_kvitteringer)
+        self.all_households = pd.DataFrame( h.as_dict() for h in sim_object.households)
+        self.all_receipts = pd.DataFrame(sim_object.receipts)
 
-        husholdning_uttrekk : pd.DataFrame = husholdning_df.sample(frac=sample_frac)
-        kvittering_uttrekk : pd.DataFrame = kvittering_df.sample(frac=sample_frac)
+        self.sampled_households = self.all_households.sample(frac=sample_frac)
+        self.sampled_receipts = self.all_receipts.sample(frac=sample_frac)
 
-        self.husholdninger = husholdning_df
-        self.sampled_husholdninger = husholdning_uttrekk.merge(right=kvittering_df, on="h_id", how="inner")
-        self.sampled_kvitteringer =kvittering_uttrekk.merge(right=husholdning_df, on="h_id", how="inner")
+        self.sampled_households = self.sampled_households.merge(right=self.all_receipts, on="h_id", how="inner")
+        self.sampled_receipts =self.sampled_receipts.merge(right=self.all_households, on="h_id", how="inner")
 
 
-def compare_sampling(sampled_data: SampledData, column: str) -> pd.DataFrame:
-    # True distribution: all receipts
-    households: pd.DataFrame = (sampled_data.husholdninger[column].value_counts(normalize=True) * 100)
+def compare_sampling(sampled_data: SampledData | None, column: str) -> pd.DataFrame:
+    """General comparison function that returns a minimal display DataFrame for one variable of interest.
+    
+    It has three columns of distributions: The full data, the household sampled, and the receipt sampled."""
+
+    if sampled_data is None:
+        print("Cannot compare without SampledData Object. Pass HouseholdSim.sampled_data instead")
+        return pd.DataFrame()
+        
+    # True distribution of column in full data
+    households: pd.DataFrame = (sampled_data.all_households[column].value_counts(normalize=True) * 100)
 
     # Household sampling: 1% households, then all their receipts
-    husholdning_trekk : pd.DataFrame = (sampled_data.sampled_husholdninger[column].value_counts(normalize=True) * 100)
+    household_sampling : pd.DataFrame = (sampled_data.sampled_households[column].value_counts(normalize=True) * 100)
     # Receipt sampling: 1% of all receipts
-    kvittering_trekk : pd.DataFrame = (sampled_data.sampled_kvitteringer[column].value_counts(normalize=True) * 100)
-
-    order: list[str] | None = sim.get_compare_pattern(column)
+    receipt_sampling : pd.DataFrame = (sampled_data.sampled_receipts[column].value_counts(normalize=True) * 100)
 
     result : pd.DataFrame  = pd.DataFrame({
-        "Fordeling full sim": households,
-        "Husholdningsuttrekk": husholdning_trekk,
-        "Kvitteringsuttrekk": kvittering_trekk,
-    }).reindex(order).fillna(0)
+        SampleType.FULL_SIM: households,
+        SampleType.HOUSEHOLD_SAMPLING : household_sampling,
+        SampleType.RECEIPT_SAMPLING : receipt_sampling,
+    }).fillna(0)
+
+    order: list[str] | None = sim.get_compare_pattern(column)
 
     if order is not None:
         result = result.reindex(order)
@@ -158,13 +173,44 @@ def compare_sampling(sampled_data: SampledData, column: str) -> pd.DataFrame:
         result = result.sort_index()
 
     # Bias relative to the true receipt distribution
-    result["Diff husholdningsuttrekk"] = (result["Husholdningsuttrekk"] - result["Fordeling full sim"])
-    result["Diff kvitteringsuttrekk"] = (result["Kvitteringsuttrekk"] - result["Fordeling full sim"] )
+    result[SampleType.DIFF_HOUSEHOLD] = (result[SampleType.HOUSEHOLD_SAMPLING] - result[SampleType.FULL_SIM])
+    result[SampleType.DIFF_RECEIPT] = (result[SampleType.RECEIPT_SAMPLING] - result[SampleType.FULL_SIM])
 
     return result.round(2)
 
 
-def sim_og_rapporter(params : sim.SimHandleFrekvensParams) -> pd.DataFrame:
-    sim_object: HusholdningsHandleSim = lag_husholdnings_handle_sim(sim_config=params, printout=False)
-    sample_data : SampledData = SampledData(sim_object)
-    return compare_sampling(sample_data, "utdanning")
+class SampleType(Enum):
+    FULL_SIM = 0
+    HOUSEHOLD_SAMPLING = 1
+    RECEIPT_SAMPLING = 2
+    DIFF_HOUSEHOLD = 3
+    DIFF_RECEIPT = 4
+
+
+def sim_and_compare(sim_config : sim.SimConfig, colnames : str | list[str]) -> DataFrame | None:
+    """Pure utility option that produces full sim and returns comparison dataframe directly.
+    Good for small N sims for param tuning.
+    
+    Pass either a single colname or a list of colnames. If passing a list, returns a list of comparison dataframes
+    """
+    sim_object: HouseholdSim = simulate(sim_config, printout=False)
+    if sim_object.sampled_data is not SampledData:
+        return
+    sample_data: SampledData = sim_object.sampled_data
+    # hacks
+    if colnames is str:
+        _sim_and_compare_single(sample_data, colnames)
+    elif colnames is list[str]:
+        _sim_and_compare_multiple(sample_data, colnames)
+    
+def _sim_and_compare_single(sample_data : SampledData, colname : str) -> pd.DataFrame:
+    """Simulates and returns comparison dataframe for given colname"""
+    return compare_sampling(sample_data, colname)
+
+def _sim_and_compare_multiple(sample_data : SampledData, colnames: list[str]) -> dict[str, pd.DataFrame]:
+    """Simulates and returns list of comparison dataframes """
+    comp_dfs : dict[str, pd.DataFrame] = {}
+    for col in colnames:
+        comp_dfs[str("comp_"+col)] = compare_sampling(sample_data, col)
+    return comp_dfs
+

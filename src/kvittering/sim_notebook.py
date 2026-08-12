@@ -9,6 +9,41 @@ from kvittering import simulate_util as su
 import pandas as pd
 
 #%%
+## Look at the details
+#%%
+sim_config: sim.SimConfig = sim.SimConfig(
+    sim_pop=10000,
+    education_effect= -20,
+    household_size_effect= 1,
+    rural_effect= 0,
+    rural_prob=0.3,
+    organized_prob= 0.3, 
+    organized_effect=2,
+    default_shop_n_year=150)
+
+sim_object: su.HouseholdSim = su.simulate(sim_config, printout=True)
+
+#%%
+print(sim_object)
+#%%
+temp_full : pd.DataFrame = sim_object.sampled_data.all_households
+temp_hush : pd.DataFrame = sim_object.sampled_data.sampled_households
+temp_kvitt : pd.DataFrame = sim_object.sampled_data.sampled_receipts
+print(len(temp_kvitt))
+print(len(temp_hush))
+
+#%%
+temp_full.groupby("utdanning")["ant_kvitteringer"].mean()
+
+#%%
+su.compare_sampling(sim_object.sampled_data, "utdanning")
+
+#%%
+
+#%%
+
+
+#%%
 
 def sim_and_compare(utdanning_effekt: int, sim_pop: int = 10000, colname : str = "") -> DataFrame:
     params = sim.SimHandleFrekvensParams(
@@ -57,8 +92,8 @@ params: sim.SimHandleFrekvensParams = sim.SimHandleFrekvensParams(
 
 default_sim: su.HusholdningsHandleSim = su.lag_husholdnings_handle_sim(sim_config=params, printout=False)
 default_sampled_data : su.SampledData = su.SampledData(sim_object=default_sim)
-default_comp: DataFrame = su.compare_sampling(sampled_data=su.SampledData(sim_object=default_sim), column="er_strukturert")
-
+default_comp_str: DataFrame = su.compare_sampling(sampled_data=su.SampledData(sim_object=default_sim), column="er_strukturert")
+default_comp_utd: DataFrame = su.compare_sampling(sampled_data=su.SampledData(sim_object=default_sim), column="utdanning")
 #%%
 params_sjelden = sim.SimHandleFrekvensParams(
     sim_pop=10000,
@@ -67,8 +102,8 @@ params_sjelden = sim.SimHandleFrekvensParams(
 
 sjelden_sim = su.lag_husholdnings_handle_sim(sim_config=params_sjelden,printout=False)
 sjelden_sampled_data = su.SampledData(sjelden_sim)
-sjelden_comp = su.compare_sampling(sampled_data=sjelden_sampled_data,column="er_strukturert")
-
+sjelden_comp_str = su.compare_sampling(sampled_data=sjelden_sampled_data,column="er_strukturert")
+sjelden_comp_utd = su.compare_sampling(sampled_data=sjelden_sampled_data,column="utdanning")
 #%%
 # Høyere utdanning = handler oftere
 
@@ -80,18 +115,21 @@ params_ofte = sim.SimHandleFrekvensParams(
 ofte_sim = su.lag_husholdnings_handle_sim(sim_config=params_ofte,printout=False)
 ofte_sampled_data = su.SampledData(ofte_sim)
 ofte_comp_str = su.compare_sampling(sampled_data=ofte_sampled_data,column="er_strukturert")
+ofte_comp_utd = su.compare_sampling(sampled_data=ofte_sampled_data,column="utdanning")
+
 
 #%%
-
-
+default_comp_utd
 #%%
-default_comp
-
+default_comp_str
 #%%
-sjelden_comp
+sjelden_comp_str
 #%%
-ofte_comp
-
+sjelden_comp_utd
+#%%
+ofte_comp_str
+#%%
+ofte_comp_utd
 
 #%%
 ## Checking multiple values
@@ -110,20 +148,11 @@ pd.crosstab(
     normalize="index"
 ).mul(100).round(2)
 
+#%%
 
 
 #%%
-params: sim.SimHandleFrekvensParams = sim.SimHandleFrekvensParams(
-    sim_pop=10000,
-    utdanning_effekt= -5,
-    husholdning_antall_effekt= 2,
-    rural_effekt= -3,
-    rural_prob=0.3,
-    strukturert_effekt= -5, 
-    strukturert_prob=0.3,
-    default_turer=200)
 
-sim_object: su.HusholdningsHandleSim = su.lag_husholdnings_handle_sim(sim_config=params, printout=True)
 
 #%%
 ## lag sample data

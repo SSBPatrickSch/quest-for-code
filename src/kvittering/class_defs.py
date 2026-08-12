@@ -4,262 +4,287 @@ from inspect import _void
 from random import random, randint, gauss
 from dataclasses import dataclass
 from enum import Enum
+from re import S
 from typing import Annotated
 
-## enum classes for indikatorer med en ønsket varians
-
-class Utdanning(Enum):
+class Education(Enum):
     UOPPGITT = 0
     GRUNNSKOLE = 1
     VIDEREGÅENDE = 2
     FAGSKOLE = 3
     HØYERE = 4
 
-class HusholdningsType(Enum):
+class HouseholdType(Enum):
     ALENEBOENDE = 1
     PAR_UTEN_BARN = 2
     PAR_MED_BARN = 3
     ENSLIG_MED_BARN = 4 
     ANNET = 5
 
-
 @dataclass 
-class Kvittering:
-    """k_id er husholdnings id _ husholdningens handletur nummer """
+class Receipt:
+    """k_id is household_id (h_id)+ _ + household shopping trip number """
     k_id : str = ""
     h_id : int = 0
-    ant_varer : int = 0
-    pris : int = 1
-
-
+    items : int = 0
+    cost : int = 1
 
 # Fordeling hentet fra :
 # https://www.ssb.no/utdanning/utdanningsniva/statistikk/befolkningens-utdanningsniva
 # Kumulativ regnet først som andel av samlet, deretter andel + andel
-utdanningsfordeling : dict[float, Utdanning] = {
-    0.050 : Utdanning.UOPPGITT, 
-    0.232 : Utdanning.GRUNNSKOLE, 
-    0.583 : Utdanning.VIDEREGÅENDE, 
-    0.617 : Utdanning.FAGSKOLE, 
-    1.000 : Utdanning.HØYERE
+utdanningsfordeling : dict[float, Education] = {
+    0.050 : Education.UOPPGITT, 
+    0.232 : Education.GRUNNSKOLE, 
+    0.583 : Education.VIDEREGÅENDE, 
+    0.617 : Education.FAGSKOLE, 
+    1.000 : Education.HØYERE
 }
 
 # 06944: Inntekt for husholdninger, etter år og husholdningstype
 # https://www.ssb.no/statbank/table/06944
 # Kumulativ regnet først som andel av samlet, deretter andel + andel
-husholdningstype_fordeling : dict[float, HusholdningsType] = {
-    0.421: HusholdningsType.ALENEBOENDE,
-    0.662 : HusholdningsType.PAR_UTEN_BARN,
-    0.847 : HusholdningsType.PAR_MED_BARN,
-    0.888 : HusholdningsType.ENSLIG_MED_BARN,
-    1.00 : HusholdningsType.ANNET
+husholdningstype_fordeling : dict[float, HouseholdType] = {
+    0.421: HouseholdType.ALENEBOENDE,
+    0.662 : HouseholdType.PAR_UTEN_BARN,
+    0.847 : HouseholdType.PAR_MED_BARN,
+    0.888 : HouseholdType.ENSLIG_MED_BARN,
+    1.00 : HouseholdType.ANNET
 }
 
-class SimHandleFrekvensParams():
-    """Config objekt for å endre hvordan husholdningsindikatorer endrer handlefrekvens.
+class SimConfig():
+    """
+    Config object to tune parameters for the simulation, primarily how often households shop. Note that they converge, price wise.
 
-    Positive verdier vil øke handlefrekvens, negative vil senke handlefrekvens.
+    Positive values will increase shopping frequency
+    Negative values will decrease shopping frequency
+    
+    All effects are treated linearly, i.e., high and low values will be affected equally.
 
-    Utdanning og husholdningsantall blir behandlet lineært, for enkelthets skyld.
-
-    Noe tilfeldig varians blir inkludert.
+    Randomness is only included in creating the household, not the shopping frequency.
     
     Arguments:
-
-    sim_pop : int                       -- Antall husholdninger som skal simuleres
-    utdanning_effekt : int              -- Utdanningsskala Uoppgitt(0)-høyere(4)
-    husholdning_antall_effekt : int     -- Antall 1-7
-    rural_effekt : int                  -- Effekten av å bo urbant
-    rural_prob : float                  -- Sannsynligheten for å bli bosatt ruralt
-    strukturert_effekt : int            -- Effekten av å være strukturert (bool)
-    strukturert_prob : float (0.00-1.00)-- Sannsynligheten for at en husholdning er strukturert (bool)
-    default_turer : int = 150           -- Basis antatt antall handleturer. varians fra andre variabler vil endre utfra denne
     """
     def __init__(self,
                 sim_pop : int = 1,
-                utdanning_effekt : int = 0,
-                husholdning_antall_effekt : int= 1,
-                rural_effekt : int = 0,
+                default_shop_n_year : int = 150,
+                organized_prob : float = 0.5,
                 rural_prob : float = 0.2,
-                strukturert_effekt : int = 1,
-                strukturert_prob : float = 0.5,
-                default_turer : int = 150) -> None:
+                education_effect : int = 0,
+                household_size_effect : int= 1,
+                rural_effect : int = 0,
+                organized_effect : int = 0
+                ) -> None:
 
         self.sim_pop : int = sim_pop
-        self.utdanning_effekt : int = utdanning_effekt
-        self.husholdning_antall_effekt : int = husholdning_antall_effekt
-        self.rural_effekt : int = rural_effekt
+        self.default_shop_n_year : int = default_shop_n_year
+        self.organized_prob : float = organized_prob
         self.rural_prob : float = rural_prob
-        self.strukturert_effekt : int = strukturert_effekt
-        self.strukturert_prob : float = strukturert_prob
-        self.default_turer : int = default_turer
+        self.education_effect : int = education_effect
+        self.household_size_effect : int = household_size_effect
+        self.rural_effect : int = rural_effect
+        self.organized_effect : int = organized_effect
 
     def __repr__(self) -> str:
         return (
-            "============== SIMULERINGSPARAMETRE ==============\n"
-            f"{self.sim_pop} : Simulerte husholdninger: \n"
-            f"{self.utdanning_effekt}   : Utdanningseffekt pr steg \n"
-            f"{self.husholdning_antall_effekt}   : Husholdningsantallseffekt pr ekstra \n"
-            f"{self.rural_effekt}   : Rural effekt på bool \n"
-            f"{self.rural_prob} : Sansynlighet for husholdning rural \n"
-            f"{self.strukturert_effekt}   : Strukturert effekt på bool \n"
-            f"{self.strukturert_prob} : Sansynlighet for husholdning strukturert \n"
-            f"{self.default_turer} : Default handleturer \n"
+            "============== Simulation parameters ==============\n"
+            f"{self.sim_pop} : Number of simulated  of households \n"
+            f"{self.default_shop_n_year}   :  Default number of shopping trips per household per year\n"
+            f"{self.organized_prob}   :  Probability of being 'structured'\n"
+            f"{self.rural_prob}   :  Probability of living in a rural area \n"
+            f"{self.education_effect} :  Education effect on shopping frequency \n"
+            f"{self.household_size_effect}   :  Household size +1 effect on shopping frequency \n"
+            f"{self.rural_effect} :  Living in a rural area effect on shopping frequency \n"
+            f"{self.organized_effect} : 'Structured' effect"
             "==================================================\n"
         )
 
-def set_ant_pers(husholdningstype : HusholdningsType) -> int:
-    match husholdningstype:
-        case HusholdningsType.ALENEBOENDE: return 1
-        case HusholdningsType.PAR_UTEN_BARN: return 2
-        case HusholdningsType.PAR_MED_BARN: return randint(3, 7)
-        case HusholdningsType.ENSLIG_MED_BARN: return 2
-        case HusholdningsType.ANNET: return randint(2, 7)
+def create_household_size(household_type : HouseholdType) -> list[int]:  
+    """Returns a a list where index[0] are adults, index[1] are children """
 
+    match household_type:
+        case HouseholdType.ALENEBOENDE: return [1,0]
+        case HouseholdType.PAR_UTEN_BARN: return [2,0]
+        case HouseholdType.PAR_MED_BARN: return [2, create_children_count()]
+        case HouseholdType.ENSLIG_MED_BARN: return [1, create_children_count()]
+        case HouseholdType.ANNET: return [randint(3,5), create_children_count() + create_children_count()]
 
-def set_handlefrekvens(params : SimHandleFrekvensParams, utdanning: Utdanning, strukturert : bool, ant_pers : int, rural : bool) -> int:
-    turer : int = params.default_turer
+def create_children_count() -> int:
+    """Generates number of children + adults. For other cat, randomizes."""
+    children : int = 0
+    seed: int = randint(1,10)
+    if seed > 5:
+        children = 2
+    elif seed > 8:
+        children = 1
+    else:
+        children = seed
+    return children
 
-    if strukturert:
-        turer += params.strukturert_effekt
+def create_shopping_frequency(params : SimConfig, education: Education, organized : bool, hh_size : list[int], rural : bool) -> int:
+    """Builds a frequency multiplier score from sim config params, then returns the default_trips * mulitplier"""
+    default_trips : int = params.default_shop_n_year
+    frequency_multiplier: float = 1.0
+
+    if organized:
+        frequency_multiplier += params.organized_effect
     if rural:
-        turer += params.rural_effekt
-    turer += (utdanning.value * params.utdanning_effekt)
-    turer += (ant_pers * params.husholdning_antall_effekt)
+        frequency_multiplier += (params.rural_effect)
+    frequency_multiplier += education.value * params.education_effect
+    frequency_multiplier += create_hh_size_weight(hh_size,params.household_size_effect)
+    frequency_multiplier += params.household_size_effect
     
-    return turer
- 
-def set_er_strukturert(strukturert_prob: float) -> bool:
-    return random() < strukturert_prob
+    return round(default_trips * frequency_multiplier)
 
-def set_rural(rural_prob : float) -> bool:
+def create_hh_size_weight(hh_size : list[int],household_size_effect : float) -> float:
+    """This creates a weigthed shopping cost-ish score for a household to model "stordriftsfordeler to some extent.
+    First adult is 1.0, each extra adult is fraction of 1.0 (arg2), and all children are fraction (arg2*0.7) of 1.0.
+    """
+    single_adult_household_equivalent : float = 1.0
+
+    adults : int = hh_size[0]
+    children : int = hh_size[1]
+
+    if adults > 1:
+        single_adult_household_equivalent += (household_size_effect * (adults -1))
+    if children > 0:
+        single_adult_household_equivalent += ((household_size_effect*0.7) * children)
+
+    return single_adult_household_equivalent
+
+
+def create_organized(organized_prob: float) -> bool:
+    return random() < organized_prob
+
+def create_rural(rural_prob : float) -> bool:
     return random() < rural_prob
 
-def set_utdanning()-> Utdanning:
+def create_education()-> Education:
     rfloat: float = random()
     for key in utdanningsfordeling.keys():
         if key > rfloat:
             return utdanningsfordeling[key]
     #should never trigger, but for the intellisense
-    return Utdanning.HØYERE
+    return Education.HØYERE
 
-def set_husholdningstype() -> HusholdningsType:
+def create_household_type() -> HouseholdType:
     rfloat: float = random()
     for key in husholdningstype_fordeling.keys():
         if key > rfloat:
             return husholdningstype_fordeling[key]
     #should never trigger, but for the intellisense
-    return HusholdningsType.ANNET
+    return HouseholdType.ANNET
 
 @dataclass
-class HusholdningsDefinisjon:
-    husholdningstype: HusholdningsType
-    utdanning : Utdanning
-    bor_ruralt : bool
-    er_strukturert : bool
-    ant_pers : int
-    handleturer_pr_aar : int
-
-def get_compare_pattern(colname : str):
+class HouseholdDefinition:
+    household_type: HouseholdType
+    education : Education
+    rural : bool
+    organized : bool
+    household_size : list[int]
+    shopping_trips_year : int
+def get_compare_pattern(colname : str) -> list[str] | None:
     match colname:
-        case "husholdningstype" : return [e.name for e in HusholdningsType]
-        case "utdanning" : return [e.name for e in Utdanning]
+        case "husholdningstype" : return [e.name for e in HouseholdType]
+        case "utdanning" : return [e.name for e in Education]
         case _: return None
 
 
-def lag_husholdnings_definisjon(sim_params : SimHandleFrekvensParams) -> HusholdningsDefinisjon:
-    _husholdningstype: HusholdningsType = set_husholdningstype()
-    _utdanning : Utdanning = set_utdanning()
-    _er_strukturert : bool = set_er_strukturert(strukturert_prob=sim_params.strukturert_prob)
-    _bor_ruralt : bool = set_rural(sim_params.rural_prob)
-    _ant_pers: int = set_ant_pers(husholdningstype=_husholdningstype)
-    _handleturer_pr_aar: int = set_handlefrekvens(params = sim_params,
-                                                utdanning=_utdanning,
-                                                strukturert=_er_strukturert, 
-                                                ant_pers=_ant_pers,
-                                                rural=_bor_ruralt
+def create_household_definition(sim_params : SimConfig) -> HouseholdDefinition:
+    _household_type: HouseholdType = create_household_type()
+    _education : Education = create_education()
+    _organized : bool = create_organized(organized_prob=sim_params.organized_prob)
+    _household_size: list[int] = create_household_size(household_type=_household_type)
+    _rural : bool = create_rural(sim_params.rural_prob)
+    _shopping_trips_year: int = create_shopping_frequency(params=sim_params,
+                                                education=_education,
+                                                organized=_organized, 
+                                                hh_size=_household_size,
+                                                rural=_rural
                                                 )
 
-    return HusholdningsDefinisjon(
-        husholdningstype= _husholdningstype,
-        utdanning= _utdanning,
-        bor_ruralt= _bor_ruralt,
-        er_strukturert= _er_strukturert,
-        ant_pers= _ant_pers,
-        handleturer_pr_aar= _handleturer_pr_aar)
+    return HouseholdDefinition(
+        household_type= _household_type,
+        education= _education,
+        rural=_rural,
+        organized= _organized,
+        household_size=_household_size,
+        shopping_trips_year= _shopping_trips_year
+        )
 
-
-class Husholdning:
-    def __init__(self, h_id : int, definisjon : HusholdningsDefinisjon) -> None:
+class Household:
+    def __init__(self, h_id : int, definition : HouseholdDefinition) -> None:
 
         self.h_id : int = h_id +1
         # Fra definisjon
-        self.husholdningstype : HusholdningsType= definisjon.husholdningstype
-        self.utdanning: Utdanning = definisjon.utdanning
-        self.bor_ruralt : bool =definisjon.bor_ruralt
-        self.ant_pers : int = definisjon.ant_pers
-        self.er_strukturert: bool = definisjon.er_strukturert
-        self.handleturer_pr_aar : int = definisjon.handleturer_pr_aar
+        self.household_type : HouseholdType= definition.household_type
+        self.education: Education = definition.education
+        self.rural : bool =definition.rural
+        self.organized : bool = definition.organized
+        self.adults : int =  definition.household_size[0]
+        self.children : int =  definition.household_size[1]
+        self.household_size: int = self.adults + self.children
+        self.shopping_trips_year : int = definition.shopping_trips_year
         # Fra konstruksjon
-        self.kvitteringer : list[Kvittering] = []
+        self.receipts : list[Receipt] = []
 
     def __repr__(self) -> str:
         return (
             "==================================================\n"
             f"ID: {self.h_id}\n"
-            f"Husholdningstype: {self.husholdningstype.name}\n"
-            f"Ant pers: {self.ant_pers}\n"
-            f"Utdanning: {self.utdanning.name}\n"
-            f"Bor rural: {self.bor_ruralt}\n"
-            f"Strukturert: {self.er_strukturert}\n"
-            f"Ant kvitteringer: {len(self.kvitteringer)}\n"
-            f"Tot pris: {self.get_kvitt_pris()} kroner\n"
+            f"Household type: {self.household_type.name}\n"
+            f"Household size: {self.household_size}\n"
+            f"Education: {self.education.name}\n"
+            f"Lives in rural area: {self.rural}\n"
+            f"Shopping trips per year: {self.shopping_trips_year}\n"
+            f"Organized: {self.organized}\n"
+            f"N receipts: {len(self.receipts)}\n"
+            f"Total spending: {self.get_receit_tot_cost()} NOK\n"
         )
         ## For quick and easy transform to dataframe.
     def as_dict(self) -> dict:
         return {
             "h_id": self.h_id,
-            "husholdningstype": self.husholdningstype.name,
-            "utdanning": self.utdanning.name,
-            "ant_pers": self.ant_pers,
-            "er_strukturert": self.er_strukturert,
-            "handleturer_pr_aar": self.handleturer_pr_aar,
-            "ant_kvitteringer": len(self.kvitteringer),
-            "tot_pris": self.get_kvitt_pris()
+            "husholdningstype": self.household_type.name,
+            "utdanning": self.education.name,
+            "ant_pers": self.household_size,
+            "organized": self.organized,
+            "shop_pr_yr": self.shopping_trips_year,
+            "n_receipts": len(self.receipts),
+            "tot_spending": self.get_receit_tot_cost()
         }
 
-    def get_kvitt_pris(self) -> int:
-            return sum(k.pris for k in self.kvitteringer)
+    def get_receit_tot_cost(self) -> int:
+            return sum(k.cost for k in self.receipts)
 
-    def handle_ett_aar(self):
-        # Vi regner omtrentlig 57 120 i året pr voksen på mat: (4760 pr måned for voksen mann 30-50 år)
+    def shop_one_year(self):
+        # We estimate 57 120 NOK per year per adult on groceries: (4760 pr måned for voksen mann 30-50 år)
         # https://www.oslomet.no/om/sifo/referansebudsjettet
 
-        aarlig_target: int = 57120 * self.ant_pers
-        snitt_kvittering: float = aarlig_target / self.handleturer_pr_aar
+        target_spending_year: int = 57120 * self.household_size
+        target_average_receipt: float = target_spending_year / self.shopping_trips_year
 
-        for tur in range(self.handleturer_pr_aar):
-            _pris: int = round(number=gauss(mu=snitt_kvittering, sigma=snitt_kvittering * 0.25))
-            pris: int = max(_pris, 100)
-            snitt_varepris = 45
-            ant_varer: int = max(1, round(number= pris/ snitt_varepris))
-            self.kvitteringer.append(
-                Kvittering(
+        for tur in range(self.shopping_trips_year):
+            _cost: int = round(number=gauss(mu=target_average_receipt, sigma=target_average_receipt * 0.25))
+            cost: int = max(_cost, 100)
+            cost_avg_item = 45
+            n_items: int = max(1, round(number= cost/ cost_avg_item))
+            self.receipts.append(
+                Receipt(
                     k_id=f"{self.h_id}-{tur}",
                     h_id= self.h_id,
-                    ant_varer=ant_varer,
-                    pris=pris,
+                    items=n_items,
+                    cost=cost,
 
                 ))
 
-def lag_befolkning(sim_config : SimHandleFrekvensParams) -> list[Husholdning]:
+def create_households(sim_params : SimConfig) -> list[Household]:
 
-    husholdninger : list[Husholdning] = []
-    for n in range(sim_config.sim_pop):
-        husholdninger.append(Husholdning(h_id= n, definisjon=lag_husholdnings_definisjon(sim_params=sim_config)))
-    return husholdninger
+    households : list[Household] = []
+    for n in range(sim_params.sim_pop):
+        households.append(Household(h_id= n, definition=create_household_definition(sim_params=sim_params)))
+    return households
 
-def simuler_handling(husholdninger : list[Husholdning]) -> list[Husholdning]:
-    for h in husholdninger:
-        h.handle_ett_aar()
-    return husholdninger
+def simulate_shopping(households : list[Household]) -> list[Household]:
+    for h in households:
+        h.shop_one_year()
+    return households
