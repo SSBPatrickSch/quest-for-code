@@ -41,6 +41,13 @@ class HouseholdSim:
             f"SampleData set: {'yes' if self.sampled_data is not None else 'no'}\n"
             "==================================================\n"
             )
+    def create_sampled_data(self, sample_frac: float = 0.01) -> None:
+        self.sampled_data = SampledData(
+        self,
+        sample_frac,
+    )
+
+
 
 def print_households(sim_object : HouseholdSim,n_to_print : int = 1) -> Any:
     """Prints (arg2) amount of random households from simulation (arg1)"""
@@ -72,7 +79,7 @@ def simulate(sim_config: sim.SimConfig|None = None, printout : bool = True, crea
 
     new_sim: HouseholdSim = HouseholdSim(sim_config,households,receipts,receipt_tot_sum)
     if create_sample_data:
-        new_sim.sampled_data = SampledData(sim_object=new_sim,sample_frac=0.1)
+        new_sim.create_sampled_data(sample_frac=0.01)
     return new_sim
 
 
@@ -88,14 +95,15 @@ def simulate_no_class(sim_config: sim.SimConfig, printout : bool) -> list[sim.Ho
         print(f'Run time: {end_lag_husholdning - start_lag_husholdning:.2f} sekunder')
         start_sim: float = time.time()
 
-    households_shopped :list[sim.Household] = sim.simulate_shopping(households)
+    households_shopped :list[sim.Household] = sim.simulate_shopping(households, sim_config)
 
     if printout:
         end_sim: float = time.time()
         print(f"Complete: Simulated shopping for: {len(households_shopped)} households")
         print(f'Run time: {end_sim - start_sim:.4f} seconds')
         print(f"First household :\n {households_shopped[0]}")
-        print(f"First receipt : \n {households_shopped[0].receipts[1]}")
+        print(f"Receipts first housheold : {len(households_shopped[0].receipts)}")
+        print(f"First receipt : \n {households_shopped[0].receipts[0]}")
 
     return households_shopped
 
@@ -160,9 +168,9 @@ def compare_sampling(sampled_data: SampledData | None, column: str) -> pd.DataFr
     receipt_sampling : pd.DataFrame = (sampled_data.sampled_receipts[column].value_counts(normalize=True) * 100)
 
     result : pd.DataFrame  = pd.DataFrame({
-        SampleType.FULL_SIM: households,
-        SampleType.HOUSEHOLD_SAMPLING : household_sampling,
-        SampleType.RECEIPT_SAMPLING : receipt_sampling,
+        SampleType.FULL_SIM.name: households,
+        SampleType.HOUSEHOLD_SAMPLING.name : household_sampling,
+        SampleType.RECEIPT_SAMPLING.name : receipt_sampling,
     }).fillna(0)
 
     order: list[str] | None = sim.get_compare_pattern(column)
@@ -173,8 +181,8 @@ def compare_sampling(sampled_data: SampledData | None, column: str) -> pd.DataFr
         result = result.sort_index()
 
     # Bias relative to the true receipt distribution
-    result[SampleType.DIFF_HOUSEHOLD] = (result[SampleType.HOUSEHOLD_SAMPLING] - result[SampleType.FULL_SIM])
-    result[SampleType.DIFF_RECEIPT] = (result[SampleType.RECEIPT_SAMPLING] - result[SampleType.FULL_SIM])
+    result[SampleType.DIFF_HOUSEHOLD.name] = (result[SampleType.HOUSEHOLD_SAMPLING.name] - result[SampleType.FULL_SIM.name])
+    result[SampleType.DIFF_RECEIPT.name] = (result[SampleType.RECEIPT_SAMPLING.name] - result[SampleType.FULL_SIM.name])
 
     return result.round(2)
 
@@ -187,21 +195,22 @@ class SampleType(Enum):
     DIFF_RECEIPT = 4
 
 
-def sim_and_compare(sim_config : sim.SimConfig, colnames : str | list[str]) -> DataFrame | None:
+def sim_and_compare(sim_config : sim.SimConfig, colnames : str | list[str]) -> pd.DataFrame | dict[str,pd.DataFrame]:
     """Pure utility option that produces full sim and returns comparison dataframe directly.
     Good for small N sims for param tuning.
     
     Pass either a single colname or a list of colnames. If passing a list, returns a list of comparison dataframes
     """
     sim_object: HouseholdSim = simulate(sim_config, printout=False)
-    if sim_object.sampled_data is not SampledData:
-        return
+    if sim_object.sampled_data is None:
+        return None
     sample_data: SampledData = sim_object.sampled_data
     # hacks
-    if colnames is str:
-        _sim_and_compare_single(sample_data, colnames)
-    elif colnames is list[str]:
-        _sim_and_compare_multiple(sample_data, colnames)
+    if isinstance(colnames, str):
+        return _sim_and_compare_single(sample_data, colnames)
+
+    elif isinstance(colnames, list):
+        return _sim_and_compare_multiple(sample_data, colnames)
     
 def _sim_and_compare_single(sample_data : SampledData, colname : str) -> pd.DataFrame:
     """Simulates and returns comparison dataframe for given colname"""
@@ -214,3 +223,22 @@ def _sim_and_compare_multiple(sample_data : SampledData, colnames: list[str]) ->
         comp_dfs[str("comp_"+col)] = compare_sampling(sample_data, col)
     return comp_dfs
 
+def compare_health_by_group(
+    sampled_data: SampledData,
+    group: str
+) -> pd.DataFrame:
+
+    household_sample: pd.DataFrame = sampled_data.sampled_households
+    receipt_sample: pd.DataFrame = sampled_data.sampled_receipts
+
+    full_healthy: pd.Series = sampled_data.all_households.groupby(group)["shopped_healthy"].mean()
+    household_healthy: pd.Series = household_sample.groupby(group)["shopped_healthy"].mean()
+    receipt_healthy: pd.Series = receipt_sample.groupby(group)["shopped_healthy"].mean()
+
+    result: pd.DataFrame = pd.DataFrame({
+        "FULL": full_healthy * 100,
+        "HOUSEHOLD_SAMPLE": household_healthy * 100,
+        "RECEIPT_SAMPLE": receipt_healthy * 100
+    })
+
+    return result.round(2)
