@@ -223,22 +223,24 @@ def _sim_and_compare_multiple(sample_data : SampledData, colnames: list[str]) ->
         comp_dfs[str("comp_"+col)] = compare_sampling(sample_data, col)
     return comp_dfs
 
-def compare_health_by_group(
-    sampled_data: SampledData,
-    group: str
-) -> pd.DataFrame:
+def compare_health_by_group(sampled_data: SampledData, group: str) -> pd.DataFrame:
+    full: pd.DataFrame = sampled_data.all_households[["h_id", group, "shopped_healthy"]]
 
-    household_sample: pd.DataFrame = sampled_data.sampled_households
-    receipt_sample: pd.DataFrame = sampled_data.sampled_receipts
+    household_sample: pd.DataFrame = sampled_data.sampled_households[["h_id", group, "shopped_healthy"]].drop_duplicates("h_id")
 
-    full_healthy: pd.Series = sampled_data.all_households.groupby(group)["shopped_healthy"].mean()
-    household_healthy: pd.Series = household_sample.groupby(group)["shopped_healthy"].mean()
-    receipt_healthy: pd.Series = receipt_sample.groupby(group)["shopped_healthy"].mean()
+    receipt_sample: pd.DataFrame = sampled_data.sampled_receipts[["h_id", group, "shopped_healthy"]].drop_duplicates("h_id")
+
+    full_result: pd.Series = full.groupby(group)["shopped_healthy"].mean() * 100
+    household_result: pd.Series = household_sample.groupby(group)["shopped_healthy"].mean() * 100
+    receipt_result: pd.Series = receipt_sample.groupby(group)["shopped_healthy"].mean() * 100
 
     result: pd.DataFrame = pd.DataFrame({
-        "FULL": full_healthy * 100,
-        "HOUSEHOLD_SAMPLE": household_healthy * 100,
-        "RECEIPT_SAMPLE": receipt_healthy * 100
+        "FULL": full_result,
+        "HOUSEHOLD_SAMPLE": household_result,
+        "RECEIPT_SAMPLE": receipt_result
     })
+
+    result["DIFF_HOUSEHOLD"] = result["HOUSEHOLD_SAMPLE"] - result["FULL"]
+    result["DIFF_RECEIPT"] = result["RECEIPT_SAMPLE"] - result["FULL"]
 
     return result.round(2)

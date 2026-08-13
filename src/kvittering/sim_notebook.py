@@ -24,6 +24,9 @@ sim_config: sim.SimConfig = sim.SimConfig(
 
 sim_object: su.HouseholdSim = su.simulate(sim_config, printout=True)
 
+#%%
+su.compare_health_by_group(sim_object.sampled_data, "education")
+
 
 #%%
 print(sim_object)
@@ -44,10 +47,8 @@ temp_full.groupby("education")["shopped_healthy"].mean()
 temp_hush.groupby("education")["shopped_healthy"].mean()
 
 #%%
-su.compare_sampling(sim_object.sampled_data, "healthy")
+su.compare_sampling(sim_object.sampled_data, "shopped_healthy")
 
-#%%
-su.compare_health_by_group(sim_object.sampled_data, "education")
 
 #%%
 
