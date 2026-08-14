@@ -9,38 +9,79 @@ from kvittering import simulate_util as su
 import pandas as pd
 
 #%%
-
 sim_config: sim.SimConfig = sim.SimConfig(
-    sim_pop=10000,
-    default_shop_n_year=150,
-    eats_healthy_prob=0.5,
-    organized_prob=0.3,
-    rural_prob=0.2,
-    education_effect=0,
-    household_size_effect=0.1,
-    rural_effect=-0.1,
-    organized_effect=-0.5
+    sim_pop=1000,
+    parameter_affects= sim.ParameterAffects.NONE,
+    eats_healthy_prob= 0.3,
+    organized_prob= 0.3,
+    rural_prob= 0.2,
+    education_effect= 0,
+    organized_effect= 0,
+    rural_effect= 0,
+)
+sim_object: su.HouseholdSim = su.simulate(sim_config, printout=True)
+data_report: pd.DataFrame = su.compare_report(sim_object)
+full_dat:pd.DataFrame = sim_object.sampled_data.all_households
+
+
+
+#%%
+data_report
+
+#%%
+sim_config: sim.SimConfig = sim.SimConfig(
+    sim_pop=1000,
+    parameter_affects= sim.ParameterAffects.HEALTHINESS,
+    eats_healthy_prob= 0.8,
+    organized_prob= 0.3,
+    rural_prob= 0.2,
+    education_effect= -0.1,
+    organized_effect= -0.1,
+    rural_effect= 0.2,
 )
 
-sim_object: su.HouseholdSim = su.simulate(sim_config, printout=True)
+sim_object2: su.HouseholdSim = su.simulate(sim_config, printout=True)
+data_report2: pd.DataFrame = su.compare_report(sim_object)
+full_dat:pd.DataFrame = sim_object.sampled_data.all_households
 
 #%%
-su.compare_health_by_group(sim_object.sampled_data, "education")
+full_dat
+#%%
+data_report2
 
 
 #%%
-print(sim_object)
+data_report: pd.DataFrame = su.compare_report(sim_object)
+#%%
+data_report
+
+#%%
+
+data_report: pd.DataFrame = su.compare_report(sim_object)
+
+#%%
+data_report
+
+#%%
 assert sim_object.sampled_data is not None
 #%%
 
-temp_full : pd.DataFrame = sim_object.sampled_data.all_households
-temp_hush : pd.DataFrame = sim_object.sampled_data.sampled_households
-temp_kvitt : pd.DataFrame = sim_object.sampled_data.sampled_receipts
-print(len(temp_kvitt))
-print(len(temp_hush))
+temp_full_households : pd.DataFrame = sim_object.sampled_data.all_households.groupby("h_id", as_index=False).first()
+temp_full_receipts : pd.DataFrame = sim_object.sampled_data.all_households.groupby("h_id", as_index=False).first()
+temp_sampled_receipts : pd.DataFrame = sim_object.sampled_data.sampled_receipts.groupby("h_id", as_index=False).first()
+
+#%%
+sim_object.sampled_data.metadata
+
+#%%
+su.compare_single(sim_object.sampled_data, "education")
+#%%
 
 
 #%%
+su.compare_health_by_group(sim_object.sampled_data, "education")
+#%%
+
 temp_full.groupby("education")["shopped_healthy"].mean()
 
 #%%
