@@ -58,45 +58,54 @@ class ParameterAffects(Enum):
 
 class SimConfig():
     """
-    Config object to tune parameters for the simulation, primarily how often households shop. Note that they converge, price wise.
+    Config object to tune parameters for the simulation.
 
-    parameter_affects: Corresponds to three "states". Choose whether config effects affect shopping frequency, healthiness propensity or both.
+    parameter_affects determines whether the configured effects affect
+    shopping frequency, healthiness propensity, or both.
 
-    Positive values will increase shopping frequency
-    Negative values will decrease shopping frequency
+    Positive health_* effects increase healthiness propensity.
+    Positive freq_* effects increase shopping frequency.
 
-    All "_effect" are percentages, i.e., between 0.00-1.00
-    
-    All effects are implemented per 1 value increase, i.e., high and low values will be affected equally.
+    All "_effect" parameters are relative effects, e.g. 0.10 = +10%.
+    All effects are implemented per 1-unit increase in the relevant variable.
 
-    All "_prob" determines the percentage of households that should have this trait.
-
-    Randomness is only included in creating the household, not the shopping frequency.
-    
+    All "_prob" parameters determine the proportion of households expected
+    to have the corresponding trait.
     """
+
     def __init__(self,
                 sim_pop : int = 1,
-                parameter_affects: ParameterAffects = ParameterAffects.SHOPPING_FREQ,
                 default_shop_n_year : int = 150,
-
                 eats_healthy_prob : float = 0.5,
                 organized_prob : float = 0.2,
                 rural_prob : float = 0.2,
-
-                education_effect : float = 0.00,
-                rural_effect :  float = 0.00,
-                organized_effect : float = 0.00,
+                health_education_effect : float = 0.0,
+                health_organized_effect : float = 0.0,
+                health_rural_effect : float = 0.0,
+                health_hh_size_effect : float = 0.0,
+                freq_education_effect : float = 0.0,
+                freq_organized_effect : float = 0.0,
+                freq_rural_effect : float = 0.0,
+                freq_hh_size_effect : float = 0.0
                 ) -> None:
 
         self.sim_pop : int = sim_pop
-        self.parameter_affects: ParameterAffects = parameter_affects
-        self.eats_healthy_prob: float = eats_healthy_prob
+        ## This is overruled by the simulation call.
+        self.parameter_affects : ParameterAffects = ParameterAffects.BOTH
+        self.eats_healthy_prob : float = eats_healthy_prob
         self.default_shop_n_year : int = default_shop_n_year
         self.organized_prob : float = organized_prob
         self.rural_prob : float = rural_prob
-        self.education_effect : float = education_effect
-        self.rural_effect : float = rural_effect
-        self.organized_effect : float = organized_effect
+
+        self.health_education_effect : float = health_education_effect
+        self.health_organized_effect : float = health_organized_effect
+        self.health_rural_effect : float = health_rural_effect
+        self.health_hh_size_effect : float = health_hh_size_effect
+
+        self.freq_education_effect : float = freq_education_effect
+        self.freq_organized_effect : float = freq_organized_effect
+        self.freq_rural_effect : float = freq_rural_effect
+        self.freq_hh_size_effect : float = freq_hh_size_effect
 
     def __repr__(self) -> str:
         return (
@@ -104,13 +113,19 @@ class SimConfig():
             "===             SIMULATION PARAMETERS          ===\n"
             "==================================================\n"
             f"{self.sim_pop:<10} Number of simulated households\n"
+            f"{self.parameter_affects.name:<10} Params affects\n"
             f"{self.default_shop_n_year:<10} Default shopping trips per year\n"
             f"{self.eats_healthy_prob:<10} Probability of eating healthy\n"
             f"{self.organized_prob:<10} Probability of being 'organized'\n"
             f"{self.rural_prob:<10} Probability of living in a rural area\n"
-            f"{self.education_effect:<10} Education effect\n"
-            f"{self.rural_effect:<10} Rural effect\n"
-            f"{self.organized_effect:<10} Organized effect\n"
+            f"{self.health_education_effect:<10} Health education effect\n"
+            f"{self.health_organized_effect:<10} Health organized effect\n"
+            f"{self.health_rural_effect:<10} Health rural effect\n"
+            f"{self.health_hh_size_effect:<10} Health household-size effect\n"
+            f"{self.freq_education_effect:<10} Frequency education effect\n"
+            f"{self.freq_organized_effect:<10} Frequency organized effect\n"
+            f"{self.freq_rural_effect:<10} Frequency rural effect\n"
+            f"{self.freq_hh_size_effect:<10} Frequency household-size effect\n"
         )
 
 def create_healthy_frac(params: SimConfig, education: Education, organized: bool, rural: bool) -> float:
@@ -121,10 +136,10 @@ def create_healthy_frac(params: SimConfig, education: Education, organized: bool
         ParameterAffects.BOTH,
     ):
         if organized:
-            healthiness *= 1 + params.organized_effect
+            healthiness *= 1 + params.health_organized_effect
         if rural:
-            healthiness *= 1 + params.rural_effect
-        healthiness *= 1 + education.value * params.education_effect
+            healthiness *= 1 + params.health_rural_effect
+        healthiness *= 1 + education.value * params.health_education_effect
 
     return max(0.0, min(1.0, healthiness))
 
@@ -138,10 +153,10 @@ def create_shopping_frequency(params: SimConfig, education: Education, organized
         ParameterAffects.BOTH,
     ):
         if organized:
-            frequency *= 1 + params.organized_effect
+            frequency *= 1 + params.freq_organized_effect
         if rural:
-            frequency *= 1 + params.rural_effect
-        frequency *= 1 + education.value * params.education_effect
+            frequency *= 1 + params.freq_rural_effect
+        frequency *= 1 + education.value * params.freq_education_effect
         frequency *= create_hh_size_weight(hh_size)
 
     return max(1, round(frequency))
@@ -250,7 +265,7 @@ def create_household_definition(sim_params : SimConfig) -> HouseholdDefinition:
         )
 
 class Household:
-    """Note, shopped healthily is simple whether or not more than half of the receipts were healthy """
+    """Note, shopped healthily is a simple whether or not more than half of the receipts were healthy """
     def __init__(self, h_id : int, definition : HouseholdDefinition) -> None:
 
         self.h_id : int = h_id + 1
@@ -258,7 +273,7 @@ class Household:
         self.household_type : HouseholdType= definition.household_type
         self.education: Education = definition.education
         self.eats_healthy_frac : float = definition.eats_healthy_frac
-        self.shopped_healthy : bool
+        self.shopped_healthy_frac : float
         self.rural : bool =definition.rural
         self.organized : bool = definition.organized
         self.adults : int =  definition.household_size[0]
@@ -273,6 +288,7 @@ class Household:
             "==================================================\n"
             f"ID: {self.h_id}\n"
             f"Household type: {self.household_type.name}\n"
+            f"Healthiness propensity: {self.eats_healthy_frac * 100}\n"
             f"Household size: {self.household_size}\n"
             f"Education: {self.education.name}\n"
             f"Lives in rural area: {self.rural}\n"
@@ -291,8 +307,8 @@ class Household:
             "children" : self.children,
             "organized": self.organized,
             "rural" : self.rural,
-            "eats_healthy_cfg": self.eats_healthy_frac,
-            "shopped_healthy" : self.shopped_healthy,
+            "eats_healthy_frac": self.eats_healthy_frac,
+            "shopped_healthy_frac" : self.shopped_healthy_frac,
             "shop_pr_yr": self.shopping_trips_year,
             "n_receipts": len(self.receipts),
             "tot_spending": self.get_receit_tot_cost()
@@ -329,7 +345,7 @@ class Household:
                     ))
             if healthy:
                 healthy_counter += 1
-        self.shopped_healthy = healthy_counter > len(self.receipts)/ 2
+        self.shopped_healthy_frac = healthy_counter / self.shopping_trips_year
 
 
 def create_households(sim_params : SimConfig) -> list[Household]:

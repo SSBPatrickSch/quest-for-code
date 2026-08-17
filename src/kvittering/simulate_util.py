@@ -56,12 +56,19 @@ def print_households(sim_object : HouseholdSim,n_to_print : int = 1) -> Any:
         print(f"{sim_object.households[idx]}")
 
 
-def simulate(sim_config: sim.SimConfig|None = None, printout : bool = True, create_sample_data : bool = True) -> HouseholdSim:
+def simulate(sim_config: sim.SimConfig|None = None,
+        sim_affect : sim.ParameterAffects = sim.ParameterAffects.BOTH,
+        printout : bool = True, 
+        create_sample_data : bool = True
+    ) -> HouseholdSim:
+    
     """ Creates households and simulates one year of shopping.
 
     Returns a HouseholdSim data object.
 
     Optional parameters:
+
+    sim_affect of enum type sim.SimAffect. This dictates what will be employed in the simulation, allowing you to reuse a sim_config.
 
     printout (default True)
     
@@ -71,6 +78,9 @@ def simulate(sim_config: sim.SimConfig|None = None, printout : bool = True, crea
 
     if sim_config == None:
         sim_config = sim.SimConfig()
+    
+    ## Sets the config to run with said effect
+    sim_config.parameter_affects = sim_affect
 
     households: list[sim.Household] = simulate_no_class(sim_config, printout)
     receipts: list[sim.Receipt] = get_all_receipts(households)
@@ -125,11 +135,19 @@ def write_files(base_path : str) -> None:
     """Writes a sim object to bøtte"""
     pass
 
+class SampleType(Enum):
+    FULL_SIM = 0
+    HOUSEHOLDS_SAMPLED = 1
+    RECEIPT_SAMPLING = 2
+    DIFF_HOUSEHOLD = 3
+    DIFF_RECEIPT = 4
+
 class SampledData:
     """Pandas DataFrame container. all_X is the full simulated datasets. sampled_x is a 1% sample: unit : receipt, households merged on."""
     all_households : pd.DataFrame
     all_receipts : pd.DataFrame
     sampled_receipts : pd.DataFrame
+    sampled_households : pd.DataFrame
     metadata:  pd.DataFrame
 
     def __init__(self, sim_object: HouseholdSim, sample_frac: float = 0.01) -> None:
@@ -138,11 +156,9 @@ class SampledData:
 
         self.sampled_receipts = self.all_receipts.sample(frac=sample_frac)
         self.sampled_receipts = self.sampled_receipts.merge(right=self.all_households, on="h_id", how="inner")
+        self.sampled_households = self.sampled_receipts.drop_duplicates("h_id")
 
         self.metadata = self.make_sample_metadata()
-        print(self.all_households["shopped_healthy"].value_counts())
-
-        print(self.sampled_receipts["shopped_healthy"].value_counts())
 
     def make_sample_metadata(self)-> pd.DataFrame:
         meta_data: list[dict] = [
@@ -153,7 +169,7 @@ class SampledData:
             "receipts_pr_hh": len(self.all_receipts) / len(self.all_households),
             "receipt_frac": 1.0,
             "household_frac": 1.0,
-            "n_hh_healthy" : self.all_households["shopped_healthy"].mean(),
+            "n_hh_healthy" : self.all_households["shopped_healthy_frac"].mean(),
             "n_hh_organized" : self.all_households["organized"].mean()
         },
         {
@@ -163,8 +179,8 @@ class SampledData:
             "receipts_pr_hh": len(self.sampled_receipts) / len(self.sampled_receipts["h_id"].drop_duplicates()),
             "receipt_frac": len(self.sampled_receipts) / len(self.all_receipts),
             "household_frac": len(self.sampled_receipts["h_id"].drop_duplicates()) / len(self.all_households),
-            "n_hh_shopped_healthy" : self.sampled_receipts["shopped_healthy"].mean(),
-            "n_hh_organized" : self.sampled_receipts["organized"].mean(),
+            "hh_shopped_healthy" : self.sampled_receipts["shopped_healthy_frac"].mean(),
+            "hh_organized" : self.sampled_receipts["organized"].mean(),
         }
         ]
         return pd.DataFrame(meta_data)
@@ -173,7 +189,7 @@ class SampledData:
 def compare_sampling(sampled_data: SampledData | None, column: str) -> pd.DataFrame:
     """General comparison function that returns a minimal display DataFrame for one variable of interest.
     
-    It has three columns of distributions: The full data, the household sampled, and the receipt sampled."""
+    It has three columns of distributions: The full data, the receipt sampled, and the households from the sampled receipts."""
 
     if sampled_data is None:
         print("Cannot compare without SampledData Object. Pass HouseholdSim.sampled_data instead")
@@ -181,15 +197,14 @@ def compare_sampling(sampled_data: SampledData | None, column: str) -> pd.DataFr
         
     # True distribution of column in full data
     households: pd.DataFrame = (sampled_data.all_households[column].value_counts(normalize=True) * 100)
-
-    # Household sampling: 1% households, then all their receipts
-   # household_sampling : pd.DataFrame = (sampled_data.sampled_households[column].value_counts(normalize=True) * 100)
     # Receipt sampling: 1% of all receipts
     receipt_sampling : pd.DataFrame = (sampled_data.sampled_receipts[column].value_counts(normalize=True) * 100)
+    # Only the households that were sampled with 1% of all receipts
+    households_sampled : pd.DataFrame = (sampled_data.sampled_households[column].value_counts(normalize=True) * 100)
 
     result : pd.DataFrame  = pd.DataFrame({
         SampleType.FULL_SIM.name: households,
-        #SampleType.HOUSEHOLD_SAMPLING.name : household_sampling,
+        SampleType.HOUSEHOLDS_SAMPLED.name : households_sampled,
         SampleType.RECEIPT_SAMPLING.name : receipt_sampling,
     }).fillna(0)
 
@@ -201,18 +216,10 @@ def compare_sampling(sampled_data: SampledData | None, column: str) -> pd.DataFr
         result = result.sort_index()
 
     # Bias relative to the true receipt distribution
-    #result[SampleType.DIFF_HOUSEHOLD.name] = (result[SampleType.HOUSEHOLD_SAMPLING.name] - result[SampleType.FULL_SIM.name])
-    result[SampleType.DIFF_RECEIPT.name] = (result[SampleType.RECEIPT_SAMPLING.name] - result[SampleType.FULL_SIM.name])
+    result[SampleType.DIFF_HOUSEHOLD.name] = result[SampleType.HOUSEHOLDS_SAMPLED.name] - result[SampleType.FULL_SIM.name]
+    result[SampleType.DIFF_RECEIPT.name] = result[SampleType.RECEIPT_SAMPLING.name] - result[SampleType.FULL_SIM.name]
 
     return result.round(2)
-
-
-class SampleType(Enum):
-    FULL_SIM = 0
-    HOUSEHOLD_SAMPLING = 1
-    RECEIPT_SAMPLING = 2
-    DIFF_HOUSEHOLD = 3
-    DIFF_RECEIPT = 4
 
 
 def sim_and_compare(sim_config : sim.SimConfig, colnames : str | list[str]) -> pd.DataFrame | dict[str,pd.DataFrame]:
@@ -247,36 +254,46 @@ def compare_multiple(sample_data: SampledData, colnames: list[str]) -> pd.DataFr
 
     result: pd.DataFrame = pd.concat(comp_dfs).reset_index()
 
-    return result[["variable","value",SampleType.FULL_SIM.name,SampleType.RECEIPT_SAMPLING.name,SampleType.DIFF_RECEIPT.name]]
+    return result[["variable","value",SampleType.FULL_SIM.name,SampleType.HOUSEHOLDS_SAMPLED.name,SampleType.RECEIPT_SAMPLING.name,SampleType.DIFF_HOUSEHOLD.name,SampleType.DIFF_RECEIPT.name]]
      
-def compare_report(sim_object : HouseholdSim, printout = False):
+def compare_report(sim_object: HouseholdSim, printout=False) -> pd.DataFrame:
     assert sim_object.sampled_data is not None
-    colnames = [
+
+    colnames: list[str] = [
         "organized",
-        "shopped_healthy",
         "rural",
         "household_type",
         "education",
-        "household_size",
     ]
+
     if printout:
         print(sim_object)
-    data_frame : pd.DataFrame = compare_multiple(sim_object.sampled_data, colnames)
-    return data_frame
 
-def compare_health_by_group(sampled_data: SampledData, group_col: str) -> pd.DataFrame:
-    full: pd.DataFrame = sampled_data.all_households[["h_id", group_col, "shopped_healthy"]]
+    result = compare_multiple(sim_object.sampled_data, colnames)
+    health = compare_health(sim_object.sampled_data)
 
-    receipt_sample: pd.DataFrame = sampled_data.sampled_receipts.groupby("h_id", as_index=False).agg({group_col: "first", "shopped_healthy": "first"})
+    health.insert(0, "variable", "shopped_healthy_frac")
+    health.insert(1, "value", "MEAN")
 
-    full_result: pd.Series = full.groupby(group_col)["shopped_healthy"].mean() * 100
-    household_result: pd.Series = household_sample.groupby(group_col)["shopped_healthy"].mean() * 100
-    receipt_result: pd.Series = receipt_sample.groupby(group_col)["shopped_healthy"].mean() * 100
+    return pd.concat([result, health], ignore_index=True)
 
-    result: pd.DataFrame = pd.DataFrame({"FULL": full_result, "HOUSEHOLD_SAMPLE": household_result, "RECEIPT_SAMPLE": receipt_result})
+def compare_health(sampled_data: SampledData) -> pd.DataFrame:
+    full = sampled_data.all_households["shopped_healthy_frac"].mean() * 100
+    households_sampled = sampled_data.sampled_households["shopped_healthy_frac"].mean() * 100
+    receipts_sampled = sampled_data.sampled_receipts["healthy"].mean() * 100
 
-    result["DIFF_HOUSEHOLD"] = result["HOUSEHOLD_SAMPLE"] - result["FULL"]
-    result["DIFF_RECEIPT"] = result["RECEIPT_SAMPLE"] - result["FULL"]
+    return pd.DataFrame({
+        "FULL_SIM": [full],
+        "HOUSEHOLDS_SAMPLED": [households_sampled],
+        "RECEIPT_SAMPLING": [receipts_sampled],
+        "DIFF_HOUSEHOLD": [households_sampled - full],
+        "DIFF_RECEIPT": [receipts_sampled - full],
+    }).round(2)
 
+def receipt_count_by_group(sampled_data: SampledData, group_col: str) -> pd.DataFrame:
+    receipts = sampled_data.all_receipts.merge(sampled_data.all_households[["h_id", group_col]], on="h_id", how="left")
+    result = receipts.groupby(group_col).size().to_frame("n_receipts")
+    result["receipt_share"] = result["n_receipts"] / result["n_receipts"].sum() * 100
+    result["household_count"] = sampled_data.all_households.groupby(group_col).size()
+    result["receipts_per_household"] = result["n_receipts"] / result["household_count"]
     return result.round(2)
-
