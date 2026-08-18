@@ -265,7 +265,7 @@ def create_household_definition(sim_params : SimConfig) -> HouseholdDefinition:
         )
 
 class Household:
-    """Note, shopped healthily is a simple whether or not more than half of the receipts were healthy """
+    """Note, shopped_healthy_frac is the share of receipts that were deemed healthy"""
     def __init__(self, h_id : int, definition : HouseholdDefinition) -> None:
 
         self.h_id : int = h_id + 1
@@ -322,9 +322,11 @@ class Household:
 
     def shop_one_year(self):
         # We estimate 57 120 NOK per year per adult on groceries: (4760 pr måned for voksen mann 30-50 år)
+        # Add some stordriftsfordeleler so that additional adults are more cost-efficient, and children counts half
         # https://www.oslomet.no/om/sifo/referansebudsjettet
 
-        target_spending_year: int = 57120 * self.household_size
+        target_spending_year: int = round(number=57120 * (self.adults * 0.8) + (self.children * 0.5))
+
         target_average_receipt: float = target_spending_year / self.shopping_trips_year
 
         healthy_counter : int = 0

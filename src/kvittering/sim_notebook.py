@@ -1,5 +1,4 @@
 #%%
-from pandas.core.frame import DataFrame
 from pydoc import describe
 
 from random import randint
@@ -11,7 +10,7 @@ import pandas as pd
 #%%
 ## Set the simulation configuration. We can reuse this, then control in the simulation call what effects we want implemented.
 sim_config = sim.SimConfig(
-    sim_pop=1000,
+    sim_pop=100000,
     eats_healthy_prob=0.5,
     organized_prob=0.3,
     rural_prob=0.2,
@@ -25,18 +24,20 @@ sim_config = sim.SimConfig(
     freq_hh_size_effect=0.0
 )
 
-sim_object: su.HouseholdSim = su.simulate(sim_config, sim_affect=sim.ParameterAffects.BOTH, printout=True)
 
+#%%
+sim_object: su.HouseholdSim = su.simulate(sim_config, sim_affect=sim.ParameterAffects.BOTH, printout=False)
 data_report: pd.DataFrame = su.compare_report(sim_object)
 full_dat:pd.DataFrame = sim_object.sampled_data.all_households
 
+#%%
 
 #%%
 data_report
 
 #%%
 
-sim_object2: su.HouseholdSim = su.simulate(sim_config, sim_affect=sim.ParameterAffects.HEALTHINESS,printout=True)
+sim_object2: su.HouseholdSim = su.simulate(sim_config, sim_affect=sim.ParameterAffects.HEALTHINESS,printout=False)
 
 data_report2: pd.DataFrame = su.compare_report(sim_object=sim_object2)
 full_dat2:pd.DataFrame = sim_object2.sampled_data.all_households
@@ -47,7 +48,7 @@ data_report2
 
 #%%
 
-sim_object3: su.HouseholdSim = su.simulate(sim_config,sim_affect=sim.ParameterAffects.NONE, printout=True)
+sim_object3: su.HouseholdSim = su.simulate(sim_config,sim_affect=sim.ParameterAffects.NONE, printout=False)
 data_report3: pd.DataFrame = su.compare_report(sim_object3)
 full_dat3:pd.DataFrame = sim_object3.sampled_data.all_households
 

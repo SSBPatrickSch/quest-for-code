@@ -258,7 +258,6 @@ def compare_multiple(sample_data: SampledData, colnames: list[str]) -> pd.DataFr
      
 def compare_report(sim_object: HouseholdSim, printout=False) -> pd.DataFrame:
     assert sim_object.sampled_data is not None
-
     colnames: list[str] = [
         "organized",
         "rural",
@@ -268,7 +267,17 @@ def compare_report(sim_object: HouseholdSim, printout=False) -> pd.DataFrame:
 
     if printout:
         print(sim_object)
-
+    print(
+        "\n"
+        "==================================================\n"
+        "                 COMPARISON METADATA\n"
+        "==================================================\n"
+        f"{'Households (all)':<30} {len(sim_object.sampled_data.all_households):>10,}\n"
+        f"{'Households (sampled)':<30} {len(sim_object.sampled_data.sampled_households):>10,}\n"
+        f"{'Receipts (all)':<30} {len(sim_object.sampled_data.all_receipts):>10,}\n"
+        f"{'Receipts (sampled)':<30} {len(sim_object.sampled_data.sampled_receipts):>10,}\n"
+        "=================================================="
+    )
     result = compare_multiple(sim_object.sampled_data, colnames)
     health = compare_health(sim_object.sampled_data)
 
