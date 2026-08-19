@@ -131,12 +131,13 @@ class SimConfig():
 def create_healthy_frac(params: SimConfig, education: Education, organized: bool, rural: bool) -> float:
     healthiness: float = params.eats_healthy_prob
 
+    if organized:
+        healthiness *= 1 + params.health_organized_effect
+
     if params.parameter_affects in (
         ParameterAffects.HEALTHINESS,
         ParameterAffects.BOTH,
     ):
-        if organized:
-            healthiness *= 1 + params.health_organized_effect
         if rural:
             healthiness *= 1 + params.health_rural_effect
         healthiness *= 1 + education.value * params.health_education_effect
@@ -148,12 +149,13 @@ def create_shopping_frequency(params: SimConfig, education: Education, organized
 
     frequency: float = params.default_shop_n_year
 
+    if organized:
+        frequency *= 1 + params.freq_organized_effect
+        
     if params.parameter_affects in (
         ParameterAffects.SHOPPING_FREQ,
         ParameterAffects.BOTH,
     ):
-        if organized:
-            frequency *= 1 + params.freq_organized_effect
         if rural:
             frequency *= 1 + params.freq_rural_effect
         frequency *= 1 + education.value * params.freq_education_effect
