@@ -275,7 +275,6 @@ class Household:
         self.household_type : HouseholdType= definition.household_type
         self.education: Education = definition.education
         self.eats_healthy_frac : float = definition.eats_healthy_frac
-        self.shopped_healthy_frac : float
         self.rural : bool =definition.rural
         self.organized : bool = definition.organized
         self.adults : int =  definition.household_size[0]
@@ -283,6 +282,7 @@ class Household:
         self.household_size: int = self.adults + self.children
         self.shopping_trips_year: int = max(1, definition.shopping_trips_year)
         # Fra konstruksjon
+        self.shopped_healthy_frac : float
         self.receipts : list[Receipt] = []
 
     def __repr__(self) -> str:
@@ -324,8 +324,8 @@ class Household:
 
     def shop_one_year(self):
         # We estimate 57 120 NOK per year per adult on groceries: (4760 pr måned for voksen mann 30-50 år)
-        # Add some stordriftsfordeleler so that additional adults are more cost-efficient, and children counts half
         # https://www.oslomet.no/om/sifo/referansebudsjettet
+        # Add some stordriftsfordeleler so that additional adults are more cost-efficient, and children counts half
 
         target_spending_year: int = round(number=57120 * (self.adults * 0.8) + (self.children * 0.5))
 
